@@ -1,0 +1,16 @@
+Frontend
+
+    - Profile looks wrong in fullscreen
+    - Make profile look nicer
+    - Add themes
+    - Add client side chess logic
+    - Add optimistic moves
+    - Add piece animations
+
+
+Both
+
+    - Make ping work
+    - Make server ms work
+    - Add resign confirmation
+    - Add feedback after sending draw offer
