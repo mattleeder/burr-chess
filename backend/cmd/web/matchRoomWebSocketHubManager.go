@@ -1,9 +1,3 @@
-// Need hub and client
-// Clients connect, if they are not players everything they send is ignored
-// If clients are players, only listen to whose turn it is
-// When a move is submitted, validate it and if it is valid broadcast the new match data to all clients
-// If it is invalid, reject it
-
 package main
 
 import (
@@ -12,10 +6,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Hub manager, opens new websockets for games in progress
 type MatchRoomHubManager struct {
-	mu sync.Mutex
-	// Registered hubs
+	mu   sync.Mutex
 	hubs map[int64]*MatchRoomHub
 }
 
@@ -48,7 +40,6 @@ func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64) (*MatchR
 	defer hubManager.mu.Unlock()
 	val, ok := hubManager.hubs[matchID]
 
-	// If hub not running, run it
 	if !ok {
 		var err error
 		val, err = hubManager.registerNewHub(matchID)
@@ -73,9 +64,9 @@ func (hubManager *MatchRoomHubManager) registerClientToMatchRoomHub(conn *websoc
 
 	if playerID == nil {
 		// Do nothing
-	} else if *playerID == val.whitePlayerID {
+	} else if *playerID == val.players[WhitePlayer].id {
 		playerCode = messageIdentifier(WhitePlayer)
-	} else if *playerID == val.blackPlayerID {
+	} else if *playerID == val.players[BlackPlayer].id {
 		playerCode = messageIdentifier(BlackPlayer)
 	}
 

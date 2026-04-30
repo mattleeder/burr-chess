@@ -7,6 +7,10 @@ Frontend
     - Add optimistic moves
     - Add piece animations
 
+Backend
+
+    - Consider rewriting validation to use numbers and bitwise comparisons
+
 
 Both
 

@@ -679,6 +679,7 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	_, authorized := app.users.Authenticate(username, updatePasswordData.CurrentPassword)
 	if !authorized {
 		app.clientError(w, http.StatusUnauthorized)
+		return
 	}
 
 	err = app.users.UpdatePassword(playerID, updatePasswordData.NewPassword)

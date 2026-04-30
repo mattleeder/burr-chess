@@ -203,6 +203,14 @@ func TestGetValidMovesForPiece(t *testing.T) {
 			expectedMoves:    []int{20}, // e6 only
 			expectedCaptures: []int{},
 		},
+		// En passant with enemy rook blocked by pawn
+		{
+			name:             "white en passant with black rook blocked by pawn",
+			fen:              "1k3K2/8/8/4Pp2/8/8/5r2/8 w - f6 0 1",
+			pieceIndex:       28,        // e5
+			expectedMoves:    []int{20}, // e6
+			expectedCaptures: []int{21}, // f6 en passant
+		},
 
 		// === BLACK EN PASSANT ===
 
@@ -1105,5 +1113,39 @@ func TestGetValidMovesForPiece(t *testing.T) {
 				t.Errorf("friendlyKingInCheck: got %v, want %v", friendlyKingInCheckOrPiecePinned, tt.expectedFriendlyKingInCheckOrPiecePinned)
 			}
 		})
+	}
+}
+
+func BenchmarkGetValidMovesForPiece(b *testing.B) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	state := BoardFromFEN(fen)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		GetValidMovesForPiece(52, state) // e2 pawn
+	}
+}
+
+func BenchmarkBoardFromFEN(b *testing.B) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	for i := 0; i < b.N; i++ {
+		BoardFromFEN(fen)
+	}
+}
+
+func BenchmarkGetFENAfterMove(b *testing.B) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	for i := 0; i < b.N; i++ {
+		GetFENAfterMove(fen, 52, 36, "") // e2-e4
+	}
+}
+func BenchmarkComplexPosition(b *testing.B) {
+	// Position with lots of pieces, pins, and checks to evaluate
+	fen := "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
+	state := BoardFromFEN(fen)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for sq := 0; sq < 64; sq++ {
+			GetValidMovesForPiece(sq, state)
+		}
 	}
 }

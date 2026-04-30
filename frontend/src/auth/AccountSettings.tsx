@@ -46,7 +46,7 @@ async function handlePasswordChange(
   const options: RequestInit = {
     credentials: "include",
     body: JSON.stringify({
-      currentPassowrd: formData.get("password") || "",
+      currentPassword: formData.get("password") || "",
       newPassword: formData.get("password") || "",
     })
   }
