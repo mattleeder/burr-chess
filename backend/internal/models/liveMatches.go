@@ -52,12 +52,35 @@ type LiveMatchModel struct {
 	DB *sql.DB
 }
 
-func (m *LiveMatchModel) InsertNew(playerOneID int64, playerTwoID int64, playerOneIsWhite bool, timeFormatInMilliseconds int64, incrementInMilliseconds int64, gameHistory []byte, averageElo float64, whitePlayerElo int64, blackPlayerElo int64) (int64, error) {
+type InsertNewParams struct {
+	PlayerOneID              int64
+	PlayerTwoID              int64
+	PlayerOneIsWhite         bool
+	TimeFormatInMilliseconds int64
+	IncrementInMilliseconds  int64
+	GameHistory              []byte
+	AverageElo               float64
+	WhitePlayerElo           int64
+	BlackPlayerElo           int64
+}
+
+type UpdateMatchParams struct {
+	MatchID                              int64
+	NewFEN                               string
+	LastMovePiece                        int
+	LastMoveMove                         int
+	WhitePlayerTimeRemainingMilliseconds int64
+	BlackPlayerTimeRemainingMilliseconds int64
+	MatchStateHistoryJSON                []byte
+	TimeOfLastMove                       time.Time
+}
+
+func (m *LiveMatchModel) InsertNew(p InsertNewParams) (int64, error) {
 	app.infoLog.Printf("Inserting new match")
 	var result sql.Result
 	var err error
 
-	app.infoLog.Printf("Inserting new match with: timeFormat: %v, increment: %v\n", timeFormatInMilliseconds, incrementInMilliseconds)
+	app.infoLog.Printf("Inserting new match with: timeFormat: %v, increment: %v\n", p.TimeFormatInMilliseconds, p.IncrementInMilliseconds)
 
 	sqlStmt := `
 	INSERT INTO live_matches (
@@ -90,23 +113,24 @@ func (m *LiveMatchModel) InsertNew(playerOneID int64, playerTwoID int64, playerO
 	}
 	defer insertStmt.Close()
 
-	if playerOneIsWhite {
-		result, err = ExecStatementWithRetry(insertStmt, playerOneID, playerTwoID, timeFormatInMilliseconds, incrementInMilliseconds, timeFormatInMilliseconds, timeFormatInMilliseconds, gameHistory, time.Time.UnixMilli(time.Now()), averageElo, whitePlayerElo, blackPlayerElo, time.Time.Unix(time.Now()))
-	} else {
-		result, err = ExecStatementWithRetry(insertStmt, playerTwoID, playerOneID, timeFormatInMilliseconds, incrementInMilliseconds, timeFormatInMilliseconds, timeFormatInMilliseconds, gameHistory, time.Time.UnixMilli(time.Now()), averageElo, whitePlayerElo, blackPlayerElo, time.Time.Unix(time.Now()))
+	whiteID, blackID := p.PlayerOneID, p.PlayerTwoID
+	if !p.PlayerOneIsWhite {
+		whiteID, blackID = p.PlayerTwoID, p.PlayerOneID
 	}
+
+	result, err = ExecStatementWithRetry(insertStmt, whiteID, blackID, p.TimeFormatInMilliseconds, p.IncrementInMilliseconds, p.TimeFormatInMilliseconds, p.TimeFormatInMilliseconds, p.GameHistory, time.Time.UnixMilli(time.Now()), p.AverageElo, p.WhitePlayerElo, p.BlackPlayerElo, time.Time.Unix(time.Now()))
 
 	if err != nil {
 		app.errorLog.Printf("Error executing statement: %v\n", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert updateRating: unable to rollback: %v", rollbackErr)
+			app.errorLog.Printf("insert live_matches: unable to rollback: %v", rollbackErr)
 		}
 		return 0, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateRating: %v\n", err)
+		app.errorLog.Printf("Error commiting transaction in InsertNew: %v\n", err)
 		return 0, err
 	}
 
@@ -120,9 +144,9 @@ func (m *LiveMatchModel) InsertNew(playerOneID int64, playerTwoID int64, playerO
 	return result.LastInsertId()
 }
 
-func (m *LiveMatchModel) EnQueueReturnInsertNew(playerOneID int64, playerTwoID int64, playerOneIsWhite bool, timeFormatInMilliseconds int64, incrementInMilliseconds int64, gameHistory []byte, averageElo float64, whitePlayerElo int64, blackPlayerElo int64, waitFor *sync.WaitGroup, block *sync.WaitGroup) (int64, error) {
+func (m *LiveMatchModel) EnQueueReturnInsertNew(p InsertNewParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) (int64, error) {
 	result, err := DBTaskQueue.EnQueueReturn(func() (any, error) {
-		return m.InsertNew(playerOneID, playerTwoID, playerOneIsWhite, timeFormatInMilliseconds, incrementInMilliseconds, gameHistory, averageElo, whitePlayerElo, blackPlayerElo)
+		return m.InsertNew(p)
 	}, waitFor, block)
 	if err != nil {
 		return 0, err
@@ -135,9 +159,9 @@ func (m *LiveMatchModel) EnQueueReturnInsertNew(playerOneID int64, playerTwoID i
 	return coercedResult, nil
 }
 
-func (m *LiveMatchModel) EnQueueInsertNew(playerOneID int64, playerTwoID int64, playerOneIsWhite bool, timeFormatInMilliseconds int64, incrementInMilliseconds int64, gameHistory []byte, averageElo float64, whitePlayerElo int64, blackPlayerElo int64, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
+func (m *LiveMatchModel) EnQueueInsertNew(p InsertNewParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
 	DBTaskQueue.EnQueue(func() (any, error) {
-		return m.InsertNew(playerOneID, playerTwoID, playerOneIsWhite, timeFormatInMilliseconds, incrementInMilliseconds, gameHistory, averageElo, whitePlayerElo, blackPlayerElo)
+		return m.InsertNew(p)
 	}, waitFor, block)
 }
 
@@ -169,78 +193,40 @@ func (m *LiveMatchModel) GetFromMatchID(matchID int64) (*LiveMatchWithUsernames,
 	 WHERE match_id = ?
 	`
 
-	var _matchID int64
-	var whitePlayerID int64
-	var blackPlayerID int64
-	var lastMovePiece sql.NullInt64
-	var lastMoveMove sql.NullInt64
-	var currentFEN string
-	var timeFormatInMilliseconds int64
-	var incrementInMilliseconds int64
-	var whitePlayerTimeRemainingMilliseconds int64
-	var blackPlayerTimeRemainingMilliseconds int64
-	var gameHistoryJSONString []byte
-	var unixMsTimeOfLastMove int64
-	var averageElo float64
-	var whitePlayerElo int64
-	var blackPlayerElo int64
-	var matchStartTime int64
-	var whitePlayerUsername sql.NullString
-	var blackPlayerUsername sql.NullString
+	var match LiveMatchWithUsernames
 
 	err := QueryRowWithRetry(
 		m.DB,
 		sqlStmt,
 		[]any{matchID},
 		[]any{
-			&_matchID,
-			&whitePlayerID,
-			&blackPlayerID,
-			&lastMovePiece,
-			&lastMoveMove,
-			&currentFEN,
-			&timeFormatInMilliseconds,
-			&incrementInMilliseconds,
-			&whitePlayerTimeRemainingMilliseconds,
-			&blackPlayerTimeRemainingMilliseconds,
-			&gameHistoryJSONString,
-			&unixMsTimeOfLastMove,
-			&averageElo,
-			&whitePlayerElo,
-			&blackPlayerElo,
-			&matchStartTime,
-			&whitePlayerUsername,
-			&blackPlayerUsername,
+			&match.MatchID,
+			&match.WhitePlayerID,
+			&match.BlackPlayerID,
+			&match.LastMovePiece,
+			&match.LastMoveMove,
+			&match.CurrentFEN,
+			&match.TimeFormatInMilliseconds,
+			&match.IncrementInMilliseconds,
+			&match.WhitePlayerTimeRemainingMilliseconds,
+			&match.BlackPlayerTimeRemainingMilliseconds,
+			&match.GameHistoryJSONString,
+			&match.UnixMsTimeOfLastMove,
+			&match.AverageElo,
+			&match.WhitePlayerElo,
+			&match.BlackPlayerElo,
+			&match.MatchStartTime,
+			&match.WhitePlayerUsername,
+			&match.BlackPlayerUsername,
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	match := &LiveMatchWithUsernames{
-		MatchID:                              matchID,
-		WhitePlayerID:                        whitePlayerID,
-		BlackPlayerID:                        blackPlayerID,
-		LastMovePiece:                        lastMovePiece,
-		LastMoveMove:                         lastMoveMove,
-		CurrentFEN:                           currentFEN,
-		TimeFormatInMilliseconds:             timeFormatInMilliseconds,
-		IncrementInMilliseconds:              incrementInMilliseconds,
-		WhitePlayerTimeRemainingMilliseconds: whitePlayerTimeRemainingMilliseconds,
-		BlackPlayerTimeRemainingMilliseconds: blackPlayerTimeRemainingMilliseconds,
-		GameHistoryJSONString:                gameHistoryJSONString,
-		UnixMsTimeOfLastMove:                 unixMsTimeOfLastMove,
-		AverageElo:                           averageElo,
-		WhitePlayerElo:                       whitePlayerElo,
-		BlackPlayerElo:                       blackPlayerElo,
-		MatchStartTime:                       matchStartTime,
-		WhitePlayerUsername:                  whitePlayerUsername,
-		BlackPlayerUsername:                  blackPlayerUsername,
-	}
-
 	app.infoLog.Printf("%+v", match)
 
-	return match, nil
+	return &match, nil
 }
 
 func (m *LiveMatchModel) EnQueueReturnGetFromMatchID(matchID int64, waitFor *sync.WaitGroup, block *sync.WaitGroup) (*LiveMatchWithUsernames, error) {
@@ -285,15 +271,15 @@ func (m *LiveMatchModel) EnQueueLogAll() {
 	}, nil, nil)
 }
 
-func (m *LiveMatchModel) UpdateLiveMatch(matchID int64, newFEN string, lastMovePiece int, lastMoveMove int, whitePlayerTimeRemainingMilliseconds int64, blackPlayerTimeRemainingMilliseconds int64, matchStateHistoryJSONstr []byte, timeOfLastMove time.Time) error {
+func (m *LiveMatchModel) UpdateLiveMatch(p UpdateMatchParams) error {
 	sqlStmt := `
 	UPDATE live_matches
-	   SET last_move_piece = ?, 
-	       last_move_move = ?, 
-		   current_fen = ?, 
-		   white_player_time_remaining_in_milliseconds = ?, 
-		   black_player_time_remaining_in_milliseconds = ?, 
-		   game_history_json_string = ?, 
+	   SET last_move_piece = ?,
+	       last_move_move = ?,
+		   current_fen = ?,
+		   white_player_time_remaining_in_milliseconds = ?,
+		   black_player_time_remaining_in_milliseconds = ?,
+		   game_history_json_string = ?,
 		   unix_ms_time_of_last_move = ?
 	 WHERE match_id = ?
 	`
@@ -311,11 +297,11 @@ func (m *LiveMatchModel) UpdateLiveMatch(matchID int64, newFEN string, lastMoveP
 	}
 	defer updateStmt.Close()
 
-	_, err = ExecStatementWithRetry(updateStmt, lastMovePiece, lastMoveMove, newFEN, whitePlayerTimeRemainingMilliseconds, blackPlayerTimeRemainingMilliseconds, matchStateHistoryJSONstr, time.Time.UnixMilli(timeOfLastMove), matchID)
+	_, err = ExecStatementWithRetry(updateStmt, p.LastMovePiece, p.LastMoveMove, p.NewFEN, p.WhitePlayerTimeRemainingMilliseconds, p.BlackPlayerTimeRemainingMilliseconds, p.MatchStateHistoryJSON, time.Time.UnixMilli(p.TimeOfLastMove), p.MatchID)
 	if err != nil {
 		app.errorLog.Printf("Error executing statement: %v\n", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert updateRating: unable to rollback: %v", rollbackErr)
+			app.errorLog.Printf("UpdateLiveMatch: unable to rollback: %v", rollbackErr)
 		}
 		return err
 	}
@@ -329,16 +315,16 @@ func (m *LiveMatchModel) UpdateLiveMatch(matchID int64, newFEN string, lastMoveP
 	return err
 }
 
-func (m *LiveMatchModel) EnQueueReturnUpdateLiveMatch(matchID int64, newFEN string, lastMovePiece int, lastMoveMove int, whitePlayerTimeRemainingMilliseconds int64, blackPlayerTimeRemainingMilliseconds int64, matchStateHistoryJSONstr []byte, timeOfLastMove time.Time, waitFor *sync.WaitGroup, block *sync.WaitGroup) error {
+func (m *LiveMatchModel) EnQueueReturnUpdateLiveMatch(p UpdateMatchParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) error {
 	err := DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
-		return m.UpdateLiveMatch(matchID, newFEN, lastMovePiece, lastMoveMove, whitePlayerTimeRemainingMilliseconds, blackPlayerTimeRemainingMilliseconds, matchStateHistoryJSONstr, timeOfLastMove)
+		return m.UpdateLiveMatch(p)
 	}, waitFor, block)
 	return err
 }
 
-func (m *LiveMatchModel) EnQueueUpdateLiveMatch(matchID int64, newFEN string, lastMovePiece int, lastMoveMove int, whitePlayerTimeRemainingMilliseconds int64, blackPlayerTimeRemainingMilliseconds int64, matchStateHistoryJSONstr []byte, timeOfLastMove time.Time, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
+func (m *LiveMatchModel) EnQueueUpdateLiveMatch(p UpdateMatchParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
 	DBTaskQueue.EnQueueErrorOnlyTask(func() error {
-		return m.UpdateLiveMatch(matchID, newFEN, lastMovePiece, lastMoveMove, whitePlayerTimeRemainingMilliseconds, blackPlayerTimeRemainingMilliseconds, matchStateHistoryJSONstr, timeOfLastMove)
+		return m.UpdateLiveMatch(p)
 	}, waitFor, block)
 }
 
@@ -400,7 +386,6 @@ func (m *LiveMatchModel) MoveMatchToPastMatches(matchID int64, result int, resul
 	`
 
 	var stmtOne, stmtTwo *sql.Stmt
-	// var resultOne, resultTwo sql.Result
 
 	tx, err := m.DB.Begin()
 	if err != nil {

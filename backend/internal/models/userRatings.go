@@ -3,7 +3,6 @@ package models
 import (
 	"burrchess/internal/chess"
 	"database/sql"
-	"errors"
 )
 
 type RatingType int
@@ -52,46 +51,34 @@ func GetRatingTypeFromTimeFormat(timeFormatInMilliseconds int64) RatingType {
 	}
 }
 
-func (m *UserRatingsModel) getRating(username string, playerID int64, queryMode QueryMode) (UserRatings, error) {
+func (m *UserRatingsModel) getRating(query UserQuery) (UserRatings, error) {
 	sqlStmt := `
 	SELECT player_id,
 	       username,
 		   bullet_rating,
 		   blitz_rating,
 		   rapid_rating,
-		   classical_rating  
+		   classical_rating
 	  FROM user_ratings
-	`
-	app.infoLog.Printf("Getting rating for username: %s, or playerID: %v\n", username, playerID)
+	` + query.whereClause
 
-	var _playerID int64
-	var _username string
+	app.infoLog.Printf("Getting rating for: %v\n", query.arg)
+
+	var playerID int64
+	var username string
 	var bulletRating int64
 	var blitzRating int64
 	var rapidRating int64
 	var classicalRating int64
-	var row *sql.Row
-	var err error
 
-	if queryMode == qmUsername {
-		sqlStmt += ` WHERE username = ?`
-		err = QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&_playerID, &_username, &bulletRating, &blitzRating, &rapidRating, &classicalRating})
-		app.rowsLog.Println(row)
-	} else if queryMode == qmPlayerID {
-		sqlStmt += ` WHERE player_id = ?`
-		err = QueryRowWithRetry(m.DB, sqlStmt, []any{playerID}, []any{&_playerID, &_username, &bulletRating, &blitzRating, &rapidRating, &classicalRating})
-		app.rowsLog.Println(row)
-	} else {
-		return UserRatings{}, errors.New("queryMode unknown")
-	}
-
+	err := QueryRowWithRetry(m.DB, sqlStmt, []any{query.arg}, []any{&playerID, &username, &bulletRating, &blitzRating, &rapidRating, &classicalRating})
 	if err != nil {
 		app.errorLog.Printf("Error getting user_ratings: %s\n", err.Error())
 		return UserRatings{}, err
 	}
 	return UserRatings{
-		PlayerID:        _playerID,
-		Username:        _username,
+		PlayerID:        playerID,
+		Username:        username,
 		BulletRating:    bulletRating,
 		BlitzRating:     blitzRating,
 		RapidRating:     rapidRating,
@@ -100,14 +87,14 @@ func (m *UserRatingsModel) getRating(username string, playerID int64, queryMode 
 }
 
 func (m *UserRatingsModel) GetRatingFromUsername(username string) (UserRatings, error) {
-	return m.getRating(username, 0, qmUsername)
+	return m.getRating(ByUsername(username))
 }
 
 func (m *UserRatingsModel) GetRatingFromPlayerID(playerID int64) (UserRatings, error) {
-	return m.getRating("", playerID, qmPlayerID)
+	return m.getRating(ByPlayerID(playerID))
 }
 
-func (m *UserRatingsModel) updateRating(username string, playerID int64, ratingType RatingType, newRating int64, queryMode QueryMode) error {
+func (m *UserRatingsModel) updateRating(query UserQuery, ratingType RatingType, newRating int64) error {
 	app.infoLog.Printf("Updating rating to %v\n", newRating)
 
 	sqlStmt := `
@@ -124,15 +111,8 @@ func (m *UserRatingsModel) updateRating(username string, playerID int64, ratingT
 	case classical:
 		sqlStmt += " SET classical_rating = ?"
 	}
-	var err error
 
-	if queryMode == qmUsername {
-		sqlStmt += ` WHERE username = ?`
-	} else if queryMode == qmPlayerID {
-		sqlStmt += ` WHERE player_id = ?`
-	} else {
-		return errors.New("queryMode unknown")
-	}
+	sqlStmt += query.whereClause
 
 	tx, err := m.DB.Begin()
 	if err != nil {
@@ -140,19 +120,14 @@ func (m *UserRatingsModel) updateRating(username string, playerID int64, ratingT
 		return err
 	}
 
-	stmtOne, err := tx.Prepare(sqlStmt)
+	stmt, err := tx.Prepare(sqlStmt)
 	if err != nil {
 		app.errorLog.Printf("Error preparing statement: %v\n", err)
 		return err
 	}
-	defer stmtOne.Close()
+	defer stmt.Close()
 
-	if queryMode == qmUsername {
-		_, err = ExecStatementWithRetry(stmtOne, newRating, username)
-	} else if queryMode == qmPlayerID {
-		_, err = ExecStatementWithRetry(stmtOne, newRating, playerID)
-	}
-
+	_, err = ExecStatementWithRetry(stmt, newRating, query.arg)
 	if err != nil {
 		app.errorLog.Printf("Error executing statement: %v\n", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
@@ -171,11 +146,11 @@ func (m *UserRatingsModel) updateRating(username string, playerID int64, ratingT
 }
 
 func (m *UserRatingsModel) UpdateRatingFromUsername(username string, ratingType RatingType, newRating int64) error {
-	return m.updateRating(username, 0, ratingType, newRating, qmUsername)
+	return m.updateRating(ByUsername(username), ratingType, newRating)
 }
 
 func (m *UserRatingsModel) UpdateRatingFromPlayerID(playerID int64, ratingType RatingType, newRating int64) error {
-	return m.updateRating("", playerID, ratingType, newRating, qmPlayerID)
+	return m.updateRating(ByPlayerID(playerID), ratingType, newRating)
 }
 
 func (m *UserRatingsModel) LogAll() {

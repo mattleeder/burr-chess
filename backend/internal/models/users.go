@@ -12,19 +12,18 @@ import (
 
 const PASSWORD_COST = 16
 
-type QueryMode int
+type UserQuery struct {
+	whereClause string
+	arg         any
+}
 
-const (
-	qmUsername = iota
-	qmPlayerID
-)
+func ByUsername(username string) UserQuery {
+	return UserQuery{whereClause: " WHERE username = ?", arg: username}
+}
 
-type QueryConsumer int
-
-const (
-	client = iota
-	server
-)
+func ByPlayerID(playerID int64) UserQuery {
+	return UserQuery{whereClause: " WHERE player_id = ?", arg: playerID}
+}
 
 type NewUserOptions struct {
 	email *string
@@ -93,6 +92,38 @@ func hashPassword(password string) (string, error) {
 func doesPasswordMatch(plaintextPassword string, hashedPassword string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plaintextPassword))
 	return err == nil
+}
+
+func (m *UserModel) execInTransaction(sqlStmt string, args ...any) error {
+	tx, err := m.DB.Begin()
+	if err != nil {
+		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		return err
+	}
+
+	stmt, err := tx.Prepare(sqlStmt)
+	if err != nil {
+		app.errorLog.Printf("Error preparing statement: %v\n", err)
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = ExecStatementWithRetry(stmt, args...)
+	if err != nil {
+		app.errorLog.Printf("Error executing statement: %v\n", err)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			app.errorLog.Printf("unable to rollback: %v", rollbackErr)
+		}
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		app.errorLog.Printf("Error committing transaction: %v\n", err)
+		return err
+	}
+
+	return nil
 }
 
 func CreateNewUserOptions(newUser NewUserInfo) (options NewUserOptions) {
@@ -195,7 +226,7 @@ func (m *UserModel) Authenticate(username string, password string) (playerID int
 	select player_id, password from users where username = ?
 	`
 	var hashedPassword string
-	err := QueryRowWithRetry(m.DB, sqlStmt, []any{password}, []any{&playerID, &hashedPassword})
+	err := QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&playerID, &hashedPassword})
 	if err != nil {
 		app.errorLog.Printf("Error getting password for user: %v\n", err.Error())
 		return 0, false
@@ -229,58 +260,34 @@ func (m *UserModel) LogAll() {
 	}
 }
 
-func (m *UserModel) getUserClientSide(username string, playerID int64, queryMode QueryMode) (UserClientSide, error) {
-	// queryMode:
-	// 0:	username
-	// 1:	playerID
+func (m *UserModel) GetUserClientSide(query UserQuery) (UserClientSide, error) {
 	sqlStmt := `
 	SELECT player_id,
 	       username,
 		   join_date,
 		   last_seen
 	  FROM users
-	`
+	` + query.whereClause
 
-	var _playerID int64
-	var _username string
-	var join_date int64
-	var last_seen int64
-	var err error
+	var playerID int64
+	var username string
+	var joinDate int64
+	var lastSeen int64
 
-	if queryMode == qmUsername {
-		sqlStmt += ` WHERE username = ?`
-		err = QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&_playerID, &_username, &join_date, &last_seen})
-	} else if queryMode == qmPlayerID {
-		sqlStmt += ` WHERE player_id = ?`
-		err = QueryRowWithRetry(m.DB, sqlStmt, []any{playerID}, []any{&_playerID, &_username, &join_date, &last_seen})
-	} else {
-		return UserClientSide{}, errors.New("queryMode unknown")
-	}
-
+	err := QueryRowWithRetry(m.DB, sqlStmt, []any{query.arg}, []any{&playerID, &username, &joinDate, &lastSeen})
 	if err != nil {
 		app.errorLog.Printf("Error getting user: %v\n", err.Error())
 		return UserClientSide{}, err
 	}
 	return UserClientSide{
-		PlayerID: _playerID,
-		Username: _username,
-		JoinDate: join_date,
-		LastSeen: last_seen,
+		PlayerID: playerID,
+		Username: username,
+		JoinDate: joinDate,
+		LastSeen: lastSeen,
 	}, nil
 }
 
-func (m *UserModel) GetUserClientSideFromUsername(username string) (UserClientSide, error) {
-	return m.getUserClientSide(username, 0, qmUsername)
-}
-
-func (m *UserModel) GetUserClientSideFromPlayerID(playerID int64) (UserClientSide, error) {
-	return m.getUserClientSide("", playerID, qmPlayerID)
-}
-
-func (m *UserModel) getUserServerSide(username string, playerID int64, queryMode QueryMode) (UserServerSide, error) {
-	// queryMode:
-	// 0:	username
-	// 1:	playerID
+func (m *UserModel) GetUserServerSide(query UserQuery) (UserServerSide, error) {
 	sqlStmt := `
 	SELECT player_id,
 	       username,
@@ -289,169 +296,37 @@ func (m *UserModel) getUserServerSide(username string, playerID int64, queryMode
 		   join_date,
 		   last_seen
 	  FROM users
-	`
+	` + query.whereClause
 
-	var _playerID int64
-	var _username string
+	var playerID int64
+	var username string
 	var password string
 	var email string
-	var join_date int64
-	var last_seen int64
-	var err error
+	var joinDate int64
+	var lastSeen int64
 
-	if queryMode == qmUsername {
-		sqlStmt += ` WHERE username = ?`
-		err = QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&_playerID, &_username, &password, &email, &join_date, &last_seen})
-	} else if queryMode == qmPlayerID {
-		sqlStmt += ` WHERE player_id = ?`
-		err = QueryRowWithRetry(m.DB, sqlStmt, []any{playerID}, []any{&_playerID, &_username, &password, &email, &join_date, &last_seen})
-
-	} else {
-		return UserServerSide{}, errors.New("queryMode unknown")
-	}
-
+	err := QueryRowWithRetry(m.DB, sqlStmt, []any{query.arg}, []any{&playerID, &username, &password, &email, &joinDate, &lastSeen})
 	if err != nil {
 		app.errorLog.Printf("Error getting user: %v\n", err.Error())
 		return UserServerSide{}, err
 	}
 	return UserServerSide{
-		PlayerID: _playerID,
-		Username: _username,
+		PlayerID: playerID,
+		Username: username,
 		Password: password,
 		Email:    email,
-		JoinDate: join_date,
-		LastSeen: last_seen,
+		JoinDate: joinDate,
+		LastSeen: lastSeen,
 	}, nil
 }
 
-func (m *UserModel) GetUserFromUsername(username string) (UserClientSide, error) {
-	return m.getUserClientSide(username, 0, qmUsername)
-}
-
-func (m *UserModel) GetUserFromPlayerID(playerID int64) (UserClientSide, error) {
-	return m.getUserClientSide("", playerID, qmPlayerID)
-}
-
-func (m *UserModel) updateLastSeen(username string, playerID int64, queryMode QueryMode) error {
-	// queryMode:
-	// 0:	username
-	// 1:	playerID
+func (m *UserModel) UpdateLastSeen(query UserQuery) error {
 	sqlStmt := `
 	UPDATE users
 	   SET last_seen = unixepoch('now')
-	`
+	` + query.whereClause
 
-	if queryMode == qmUsername {
-		sqlStmt += ` WHERE username = ?`
-	} else if queryMode == qmPlayerID {
-		sqlStmt += ` WHERE player_id = ?`
-	} else {
-		return errors.New("queryMode unknown")
-	}
-
-	tx, err := m.DB.Begin()
-	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
-		return err
-	}
-
-	updateStmt, err := tx.Prepare(sqlStmt)
-	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
-		return err
-	}
-	defer updateStmt.Close()
-
-	if queryMode == qmUsername {
-		_, err = ExecStatementWithRetry(updateStmt, username)
-	} else if queryMode == qmPlayerID {
-		_, err = ExecStatementWithRetry(updateStmt, playerID)
-	}
-
-	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert updateLastSeen: unable to rollback: %v", rollbackErr)
-		}
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateRating: %v\n", err)
-		return err
-	}
-
-	return err
-}
-
-func (m *UserModel) UpdateLastSeenFromUsername(username string) error {
-	return m.updateLastSeen(username, 0, qmUsername)
-}
-
-func (m *UserModel) UpdateLastSeenFromPlayerID(playerID int64) error {
-	return m.updateLastSeen("", playerID, qmPlayerID)
-}
-
-func (m *UserModel) updateEmail(email string, username string, playerID int64, queryMode QueryMode) error {
-	// queryMode:
-	// 0:	username
-	// 1:	playerID
-	sqlStmt := `
-	UPDATE users
-	   SET email = ?
-	`
-
-	if queryMode == qmUsername {
-		sqlStmt += ` WHERE username = ?`
-	} else if queryMode == qmPlayerID {
-		sqlStmt += ` WHERE player_id = ?`
-	} else {
-		return errors.New("queryMode unknown")
-	}
-
-	tx, err := m.DB.Begin()
-	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
-		return err
-	}
-
-	updateStmt, err := tx.Prepare(sqlStmt)
-	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
-		return err
-	}
-	defer updateStmt.Close()
-
-	if queryMode == qmUsername {
-		_, err = ExecStatementWithRetry(updateStmt, username, email)
-	} else if queryMode == qmPlayerID {
-		_, err = ExecStatementWithRetry(updateStmt, playerID, email)
-	}
-
-	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert updateRating: unable to rollback: %v", rollbackErr)
-		}
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateEmail: %v\n", err)
-		return err
-	}
-
-	return err
-}
-
-func (m *UserModel) UpdateEmailFromUsername(username string, email string) error {
-	return m.updateEmail(email, username, 0, qmUsername)
-}
-
-func (m *UserModel) UpdateEmailFromPlayerID(playerID int64, email string) error {
-	return m.updateEmail(email, "", playerID, qmPlayerID)
+	return m.execInTransaction(sqlStmt, query.arg)
 }
 
 func (m *UserModel) SearchForUsers(searchString string) ([]UserClientSide, error) {
@@ -498,7 +373,7 @@ func (m *UserModel) GetTileInfoFromUsername(username string) (*UserTileInfo, err
 	SELECT users.player_id, join_date, last_seen, bullet_rating, blitz_rating, rapid_rating, classical_rating
 	  FROM users
 	 INNER JOIN user_ratings
-	    ON users.player_id = user_ratings.player_id  
+	    ON users.player_id = user_ratings.player_id
 	 WHERE users.username = ?
 	`
 
@@ -553,9 +428,6 @@ func (m *UserModel) GetTileInfoFromUsername(username string) (*UserTileInfo, err
 }
 
 func (m *UserModel) GetUserAccountSettings(playerID int64) (AccountSettings, error) {
-	// queryMode:
-	// 0:	username
-	// 1:	playerID
 	sqlStmt := `
 	SELECT email
 	  FROM users
@@ -593,36 +465,7 @@ func (m *UserModel) UpdateEmail(playerID int64, newEmail string) error {
 		Valid:  validEmail,
 	}
 
-	tx, err := m.DB.Begin()
-	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
-		return err
-	}
-
-	updateStmt, err := tx.Prepare(sqlStmt)
-	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
-		return err
-	}
-	defer updateStmt.Close()
-
-	_, err = ExecStatementWithRetry(updateStmt, updateEmail, playerID)
-
-	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert updateRating: unable to rollback: %v", rollbackErr)
-		}
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateEmail: %v\n", err)
-		return err
-	}
-
-	return err
+	return m.execInTransaction(sqlStmt, updateEmail, playerID)
 }
 
 func (m *UserModel) UpdatePassword(playerID int64, newPassword string) error {
@@ -644,34 +487,5 @@ func (m *UserModel) UpdatePassword(playerID int64, newPassword string) error {
 		return err
 	}
 
-	tx, err := m.DB.Begin()
-	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
-		return err
-	}
-
-	updateStmt, err := tx.Prepare(sqlStmt)
-	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
-		return err
-	}
-	defer updateStmt.Close()
-
-	_, err = ExecStatementWithRetry(updateStmt, hashedPassword, playerID)
-
-	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert updateRating: unable to rollback: %v", rollbackErr)
-		}
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateEmail: %v\n", err)
-		return err
-	}
-
-	return err
+	return m.execInTransaction(sqlStmt, hashedPassword, playerID)
 }

@@ -8,8 +8,8 @@ import (
 
 type PastMatch struct {
 	MatchID                  int64          `json:"matchID"`
-	WhitePlayerID            sql.NullString `json:"whitePlayerID"`
-	BlackPlayerID            sql.NullString `json:"blackPlayerID"`
+	WhitePlayerID            int64         `json:"whitePlayerID"`
+	BlackPlayerID            int64         `json:"blackPlayerID"`
 	LastMovePiece            sql.NullInt64  `json:"lastMovePiece"`
 	LastMoveMove             sql.NullInt64  `json:"lastMoveMove"`
 	FinalFEN                 string         `json:"currentFEN"`
@@ -106,23 +106,6 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 	`
 
 	var output []PastMatchSummary
-	var matchID int64
-	var whitePlayerUsername sql.NullString
-	var blackPlayerUsername sql.NullString
-	var lastMovePiece sql.NullInt64
-	var lastMoveMove sql.NullInt64
-	var finalFEN string
-	var timeFormatMilliseconds int64
-	var incrementMilliseconds int64
-	var result int64
-	var resultReason int64
-	var whitePlayerElo float64
-	var blackPlayerElo float64
-	var whitePlayerEloGain float64
-	var blackPlayerEloGain float64
-	var averageElo float64
-	var matchStartTime int64
-	var matchEndTime int64
 
 	if filters.TimeFormatLower != nil {
 		sqlStmt += " AND m.time_format_in_milliseconds > ?"
@@ -137,8 +120,7 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 	}
 
 	if filters.Username != nil {
-		sqlStmt += ` AND white_player.username = ? 
-		              OR black_player.username = ?`
+		sqlStmt += ` AND (white_player.username = ? OR black_player.username = ?)`
 		args = append(args, filters.Username, filters.Username)
 	}
 
@@ -150,24 +132,25 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 
 	defer rows.Close()
 	for rows.Next() {
+		var m PastMatchSummary
 		err := rows.Scan(
-			&matchID,
-			&whitePlayerUsername,
-			&blackPlayerUsername,
-			&lastMovePiece,
-			&lastMoveMove,
-			&finalFEN,
-			&timeFormatMilliseconds,
-			&incrementMilliseconds,
-			&result,
-			&resultReason,
-			&whitePlayerElo,
-			&blackPlayerElo,
-			&whitePlayerEloGain,
-			&blackPlayerEloGain,
-			&averageElo,
-			&matchStartTime,
-			&matchEndTime,
+			&m.MatchID,
+			&m.WhitePlayerUsername,
+			&m.BlackPlayerUsername,
+			&m.LastMovePiece,
+			&m.LastMoveMove,
+			&m.FinalFEN,
+			&m.TimeFormatInMilliseconds,
+			&m.IncrementInMilliseconds,
+			&m.Result,
+			&m.ResultReason,
+			&m.WhitePlayerElo,
+			&m.BlackPlayerElo,
+			&m.WhitePlayerEloGain,
+			&m.BlackPlayerEloGain,
+			&m.AverageElo,
+			&m.MatchStartTime,
+			&m.MatchEndTime,
 		)
 
 		if err != nil {
@@ -175,25 +158,7 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 			return nil, err
 		}
 
-		output = append(output, PastMatchSummary{
-			MatchID:                  matchID,
-			WhitePlayerUsername:      whitePlayerUsername,
-			BlackPlayerUsername:      blackPlayerUsername,
-			LastMovePiece:            lastMovePiece,
-			LastMoveMove:             lastMoveMove,
-			FinalFEN:                 finalFEN,
-			TimeFormatInMilliseconds: timeFormatMilliseconds,
-			IncrementInMilliseconds:  incrementMilliseconds,
-			Result:                   result,
-			ResultReason:             resultReason,
-			WhitePlayerElo:           whitePlayerElo,
-			BlackPlayerElo:           blackPlayerElo,
-			WhitePlayerEloGain:       whitePlayerEloGain,
-			BlackPlayerEloGain:       blackPlayerEloGain,
-			AverageElo:               averageElo,
-			MatchStartTime:           matchStartTime,
-			MatchEndTime:             matchEndTime,
-		})
+		output = append(output, m)
 	}
 
 	return output, nil

@@ -301,7 +301,16 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	app.liveMatches.EnQueueUpdateLiveMatch(hub.matchID, newFEN, chessMove.Body.Piece, chessMove.Body.Move, hub.players[WhitePlayer].timeRemaining.Milliseconds(), hub.players[BlackPlayer].timeRemaining.Milliseconds(), matchStateHistoryData, hub.timeOfLastMove, hub.taskQueueWaitGroup, &wg)
+	app.liveMatches.EnQueueUpdateLiveMatch(models.UpdateMatchParams{
+		MatchID:                              hub.matchID,
+		NewFEN:                               newFEN,
+		LastMovePiece:                        chessMove.Body.Piece,
+		LastMoveMove:                         chessMove.Body.Move,
+		WhitePlayerTimeRemainingMilliseconds: hub.players[WhitePlayer].timeRemaining.Milliseconds(),
+		BlackPlayerTimeRemainingMilliseconds: hub.players[BlackPlayer].timeRemaining.Milliseconds(),
+		MatchStateHistoryJSON:                matchStateHistoryData,
+		TimeOfLastMove:                       hub.timeOfLastMove,
+	}, hub.taskQueueWaitGroup, &wg)
 	hub.taskQueueWaitGroup = &wg
 
 	if gameOverStatus != chess.Ongoing {
