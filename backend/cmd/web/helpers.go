@@ -4,14 +4,22 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 // Errors
+
+var (
+	ErrValueTooLong = errors.New("cookie value too long")
+	ErrInvalidValue = errors.New("invalid cookie value")
+)
 
 func (app *application) serverError(w http.ResponseWriter, err error, suppress bool) {
 	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
@@ -100,4 +108,25 @@ func ReadSigned(r *http.Request, secretKey []byte, name string) (string, error) 
 	}
 
 	return value, nil
+}
+
+func (app *application) writeJSON(w http.ResponseWriter, data any) {
+	jsonStr, err := json.Marshal(data)
+	if err != nil {
+		app.serverError(w, err, false)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonStr)
+}
+
+func (app *application) withPerfLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		defer func() {
+			app.perfLog.Printf("%s %s took: %s\n", r.Method, r.URL.Path, time.Since(start))
+		}()
+		next.ServeHTTP(w, r)
+	})
 }

@@ -14,11 +14,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var (
-	ErrValueTooLong = errors.New("cookie value too long")
-	ErrInvalidValue = errors.New("invalid cookie value")
-)
-
 type getChessMoveData struct {
 	Fen   string
 	Piece int
@@ -44,10 +39,6 @@ type authData struct {
 	Username string `json:"username"`
 }
 
-type userSearchData struct {
-	SearchString string `json:"searchString"`
-}
-
 type updateEmailRequest struct {
 	Email string `json:"email"`
 }
@@ -67,16 +58,6 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getChessMovesHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("getChessMovesHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
 	var chessMoveData getChessMoveData
 
 	err := json.NewDecoder(r.Body).Decode(&chessMoveData)
@@ -90,26 +71,10 @@ func getChessMovesHandler(w http.ResponseWriter, r *http.Request) {
 	var currentGameState = chess.BoardFromFEN(chessMoveData.Fen)
 	var moves, captures, triggerPromotion, _ = chess.GetValidMovesForPiece(chessMoveData.Piece, currentGameState)
 
-	var data = getChessMoveDataJSON{Moves: moves, Captures: captures, TriggerPromotion: triggerPromotion}
-
-	jsonStr, err := json.Marshal(data)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Write(jsonStr)
+	app.writeJSON(w, getChessMoveDataJSON{Moves: moves, Captures: captures, TriggerPromotion: triggerPromotion})
 }
 
 func joinQueueHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("joinQueueHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		app.clientError(w, http.StatusMethodNotAllowed)
-	}
-
 	var joinQueue joinQueueRequest
 
 	app.infoLog.Printf("%v\n", r.Body)
@@ -150,10 +115,8 @@ func joinQueueHandler(w http.ResponseWriter, r *http.Request) {
 	if joinQueue.Action == "join" {
 		addPlayerToWaitingPool(playerID, joinQueue.TimeFormatInMilliseconds, joinQueue.IncrementInMilliseconds)
 	} else {
-		// err = removePlayerFromQueue(playerIDasInt, joinQueue.Time, joinQueue.Increment)
 		removePlayerFromWaitingPool(playerID, joinQueue.TimeFormatInMilliseconds, joinQueue.IncrementInMilliseconds)
 	}
-
 }
 
 type Client struct {
@@ -195,13 +158,12 @@ func matchFoundSSEHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !app.sessionManager.Exists(r.Context(), "playerID") {
 		app.serverError(w, errors.New("no playerID in session"), false)
+		return
 	}
 
 	var playerID = app.sessionManager.GetInt64(r.Context(), "playerID")
 	app.infoLog.Printf("playerID in session: %v", playerID)
 
-	// Do the channels get properly closed on a leave queue?
-	// Do we send the proper message on a leave queue?
 	clients.mu.Lock()
 	_, ok := clients.clients[playerID]
 	if !ok {
@@ -262,14 +224,6 @@ func matchFoundSSEHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHighestEloMatchHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("getChessMovesHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "GET" {
-		w.Header().Set("Allow", "GET")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	matchID, err := app.liveMatches.GetHighestEloMatch()
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
@@ -280,26 +234,10 @@ func getHighestEloMatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := getHighestEloMatchResponse{MatchID: matchID}
-	jsonStr, err := json.Marshal(data)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonStr)
+	app.writeJSON(w, getHighestEloMatchResponse{MatchID: matchID})
 }
 
 func registerUserHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("registerUserHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	var newUser models.NewUserInfo
 
 	err := json.NewDecoder(r.Body).Decode(&newUser)
@@ -329,42 +267,21 @@ func registerUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var authData = authData{
-		Username: newUser.Username,
-	}
-
-	jsonStr, err := json.Marshal(authData)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
 	err = app.sessionManager.RenewToken(r.Context())
 	if err != nil {
 		app.serverError(w, err, false)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	app.sessionManager.RememberMe(r.Context(), newUser.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", newUser.Username)
 	app.sessionManager.Put(r.Context(), "playerID", playerID)
 	w.WriteHeader(http.StatusCreated)
-	w.Write(jsonStr)
+	app.writeJSON(w, authData{Username: newUser.Username})
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("loginHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	var loginInfo models.UserLoginInfo
-
-	var loginValidationErrors models.UserLoginInfo
 
 	err := json.NewDecoder(r.Body).Decode(&loginInfo)
 	if err != nil {
@@ -375,6 +292,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	playerID, authorized := app.users.Authenticate(loginInfo.Username, loginInfo.Password)
 	if !authorized {
 		w.WriteHeader(http.StatusUnauthorized)
+		var loginValidationErrors models.UserLoginInfo
 		loginValidationErrors.Username = "Username or password invalid."
 		jsonStr, jsonErr := json.Marshal(loginValidationErrors)
 		if jsonErr == nil {
@@ -385,41 +303,23 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var authData = authData{
-		Username: loginInfo.Username,
-	}
-
-	jsonStr, err := json.Marshal(authData)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
 	err = app.sessionManager.RenewToken(r.Context())
 	if err != nil {
 		app.serverError(w, err, false)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	app.sessionManager.RememberMe(r.Context(), loginInfo.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", loginInfo.Username)
 	app.sessionManager.Put(r.Context(), "playerID", playerID)
-	w.Write(jsonStr)
+	app.writeJSON(w, authData{Username: loginInfo.Username})
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("logoutHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	if !app.sessionManager.Exists(r.Context(), "username") {
 		app.errorLog.Printf("Not logged in\n")
-		w.WriteHeader(http.StatusBadRequest)
+		app.clientError(w, http.StatusBadRequest)
+		return
 	}
 
 	err := app.sessionManager.RenewToken(r.Context())
@@ -433,14 +333,6 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("validateSessionHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	if !app.sessionManager.Exists(r.Context(), "username") {
 		if !app.sessionManager.Exists(r.Context(), "playerID") {
 			app.sessionManager.Put(r.Context(), "playerID", generateNewPlayerId())
@@ -448,33 +340,13 @@ func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
 
-	var authData = authData{
+	app.writeJSON(w, authData{
 		Username: app.sessionManager.GetString(r.Context(), "username"),
-	}
-
-	jsonStr, err := json.Marshal(authData)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	w.Write(jsonStr)
+	})
 }
 
 func userSearchHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("userSearchHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "GET" {
-		w.Header().Set("Allow", "GET")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
-	queryParams := r.URL.Query()
-
-	searchString := queryParams.Get("search")
+	searchString := r.URL.Query().Get("search")
 
 	if searchString == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -487,29 +359,11 @@ func userSearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonStr, err := json.Marshal(userList)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	w.Write(jsonStr)
+	app.writeJSON(w, userList)
 }
 
 func getTileInfoHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("getTileInfoHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "GET" {
-		w.Header().Set("Allow", "GET")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
-	queryParams := r.URL.Query()
-
-	searchString := queryParams.Get("search")
+	searchString := r.URL.Query().Get("search")
 
 	if searchString == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -522,26 +376,10 @@ func getTileInfoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonStr, err := json.Marshal(tileInfo)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	w.Write(jsonStr)
+	app.writeJSON(w, tileInfo)
 }
 
 func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("getPastMatchesListHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "GET" {
-		w.Header().Set("Allow", "GET")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	filters := models.PastMatchFilters{}
 
 	queryParams := r.URL.Query()
@@ -558,13 +396,10 @@ func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
 	switch searchString {
 	case "bullet":
 		filters.TimeFormatLower, filters.TimeFormatUpper = &chess.Bullet[0], &chess.Bullet[1]
-
 	case "blitz":
 		filters.TimeFormatLower, filters.TimeFormatUpper = &chess.Blitz[0], &chess.Blitz[1]
-
 	case "rapid":
 		filters.TimeFormatLower, filters.TimeFormatUpper = &chess.Rapid[0], &chess.Rapid[1]
-
 	case "classical":
 		filters.TimeFormatLower, filters.TimeFormatUpper = &chess.Classical[0], &chess.Classical[1]
 	}
@@ -576,28 +411,13 @@ func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	app.infoLog.Printf("%v\n", matchList)
 
-	jsonStr, err := json.Marshal(matchList)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	w.Write(jsonStr)
+	app.writeJSON(w, matchList)
 }
 
 func getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("getUserAccountSettingsHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "GET" {
-		w.Header().Set("Allow", "GET")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	if !app.sessionManager.Exists(r.Context(), "playerID") {
 		app.clientError(w, http.StatusUnauthorized)
+		return
 	}
 	playerID := app.sessionManager.GetInt64(r.Context(), "playerID")
 
@@ -607,28 +427,13 @@ func getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonStr, err := json.Marshal(accountSettings)
-	if err != nil {
-		app.serverError(w, err, false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	w.Write(jsonStr)
+	app.writeJSON(w, accountSettings)
 }
 
 func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("updateEmailHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	if !app.sessionManager.Exists(r.Context(), "playerID") {
 		app.clientError(w, http.StatusUnauthorized)
+		return
 	}
 	playerID := app.sessionManager.GetInt64(r.Context(), "playerID")
 
@@ -652,16 +457,9 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() { app.perfLog.Printf("updatePasswordHandler took: %s\n", time.Since(start)) }()
-
-	if r.Method != "POST" {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-	}
-
 	if !app.sessionManager.Exists(r.Context(), "playerID") || !app.sessionManager.Exists(r.Context(), "username") {
 		app.clientError(w, http.StatusUnauthorized)
+		return
 	}
 	playerID := app.sessionManager.GetInt64(r.Context(), "playerID")
 	username := app.sessionManager.GetString(r.Context(), "username")
