@@ -1,4 +1,4 @@
-import { useRef, useReducer, useCallback, useEffect, useState, createContext } from "react"
+import React, { useRef, useReducer, useCallback, useEffect, useState, createContext } from "react"
 import type { ReactNode, Dispatch } from "react"
 import { parseGameStateFromFEN, PieceColour, PieceVariant } from "./ChessLogic"
 import { SQLNullString } from "../types"

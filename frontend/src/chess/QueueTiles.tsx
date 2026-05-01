@@ -219,12 +219,6 @@ export function QueueTiles() {
   }, [queueName])
 
   useEffect(() => {
-    if (matchFoundState.current != null) {
-      navigate("matchroom/" + matchFoundState.current.matchRoom, { state: matchFoundState.current })
-    }
-  }, [matchFoundState.current])
-  
-  useEffect(() => {
     const leaveOnUnmount = async () => {
       try {
         await tryLeaveQueue(queueNameRef.current, eventSource)

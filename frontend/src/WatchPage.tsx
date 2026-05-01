@@ -184,6 +184,7 @@ export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: n
 export function WatchPage() {
   const [fetchingMatches, setFetchingMatches] = useState(true)
   const [fetchError, setFetchError] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [searchParams, _setSearchParams] = useSearchParams()
   const [matchList, setMatchList] = useState<pastMatchData[]>([])
 
