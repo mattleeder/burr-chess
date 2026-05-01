@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useState } from "react";
-import { submitFormData } from "../ui/forms/FormUtilities";
+import { submitFormData, FormResult } from "../ui/forms/FormUtilities";
+import { API } from "../api";
 
 interface AuthData {
   username: string
@@ -31,11 +32,11 @@ export interface LoginFormValidationErrors {
 
 export interface AuthContextType {
   isLoading: boolean,
-  isLoggedIn:  boolean,
+  isLoggedIn: boolean,
   authData: AuthData,
-  register (data: RegisterData, callback?: (success: boolean, responseData?: RegisterFormValidationErrors) => void): void,
-  login (data: LoginData, callback?: (success: boolean, responseData?: LoginFormValidationErrors) => void): void,
-  logout(callback?: (success: boolean) => void) :void,
+  register(data: RegisterData): Promise<FormResult<RegisterFormValidationErrors>>,
+  login(data: LoginData): Promise<FormResult<LoginFormValidationErrors>>,
+  logout(): Promise<FormResult>,
 }
 
 const DEFAULT_AUTH_DATA: AuthData = {
@@ -46,131 +47,92 @@ export const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isLoggedIn: false,
   authData: DEFAULT_AUTH_DATA,
-  register: () => {},
-  login: () => {},
-  logout: () => {}
+  register: () => Promise.resolve({ ok: false }),
+  login: () => Promise.resolve({ ok: false }),
+  logout: () => Promise.resolve({ ok: false }),
 });
-
-async function register(setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>, setAuthData: React.Dispatch<React.SetStateAction<AuthData>>, data: RegisterData, callback?: (success: boolean, responseData?: AuthData) => void) {
-  const url = import.meta.env.VITE_API_REGISTER_URL
-  const options: RequestInit = {
-    credentials: "include",
-    body: JSON.stringify({
-      username: data.username,
-      password: data.password,
-      email: data.email || "",
-      rememberMe: data.rememberMe,
-    })
-  }
-
-  const registerCallback = (success: boolean, responseData: unknown) => {
-    if (success) {
-      setIsLoggedIn(true)
-      setAuthData(responseData as AuthData)
-    }
-    if (callback !== undefined) {
-      callback(success, responseData as RegisterFormValidationErrors)
-    }
-  }
-
-  submitFormData(url, options, registerCallback)
-}
-
-async function login(setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>, setAuthData: React.Dispatch<React.SetStateAction<AuthData>>, data: LoginData, callback?: (success: boolean, responseData?: AuthData) => void) {
-  const url = import.meta.env.VITE_API_LOGIN_URL
-  const options: RequestInit = {
-    credentials: "include",
-    body: JSON.stringify({
-      username: data.username,
-      password: data.password,
-      rememberMe: data.rememberMe,
-    })
-  }
-
-  const loginCallback = (success: boolean, responseData: unknown) => {
-    if (success) {
-      setIsLoggedIn(true)
-      setAuthData(responseData as AuthData)
-    }
-    if (callback !== undefined) {
-      callback(success, responseData as RegisterFormValidationErrors)
-    }
-  }
-
-  submitFormData(url, options, loginCallback)
-}
-
-async function logout(setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>, setAuthData: React.Dispatch<React.SetStateAction<AuthData>>, callback?: (success: boolean) => void) {
-  const url = import.meta.env.VITE_API_LOGOUT_URL
-  const options: RequestInit = {
-    credentials: "include",
-  }
-
-  const logoutCallback = (success: boolean) => {
-    if (success) {
-      setIsLoggedIn(false)
-      setAuthData(DEFAULT_AUTH_DATA)
-    }
-    if (callback !== undefined) {
-      callback(false)
-    }
-  }
-
-  submitFormData(url, options, logoutCallback)
-}
-
-async function setLoginStatus(
-  setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>,
-  setAuthData: React.Dispatch<React.SetStateAction<AuthData>>,
-  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>,
-) {
-  const url = import.meta.env.VITE_API_VALIDATE_SESSION_URL
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      credentials: "include",
-      signal: AbortSignal.timeout(5000),
-    })
-
-    console.log("TEST")
-    console.log(response)
-    
-    if (response.ok) {
-      const data = await response.json()
-      setIsLoggedIn(true)
-      setAuthData(data)
-    }
-  } catch (e) {
-    console.error(e)
-  } finally {
-    setIsLoading(false)
-  }
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [authData, setAuthData] = useState<AuthData>(DEFAULT_AUTH_DATA)
 
-  const registerClosure = (data: RegisterData, callback: (success: boolean) => void) => {
-    register(setIsLoggedIn, setAuthData, data, callback)
+  async function register(data: RegisterData): Promise<FormResult<RegisterFormValidationErrors>> {
+    const result = await submitFormData<RegisterFormValidationErrors>(API.register, {
+      credentials: "include",
+      body: JSON.stringify({
+        username: data.username,
+        password: data.password,
+        email: data.email || "",
+        rememberMe: data.rememberMe,
+      }),
+    })
+
+    if (result.ok && result.data) {
+      setIsLoggedIn(true)
+      setAuthData(result.data as unknown as AuthData)
+    }
+
+    return result
   }
 
-  const loginClosure = (data: LoginData, callback: (success: boolean) => void) => {
-    login(setIsLoggedIn, setAuthData, data, callback)
+  async function login(data: LoginData): Promise<FormResult<LoginFormValidationErrors>> {
+    const result = await submitFormData<LoginFormValidationErrors>(API.login, {
+      credentials: "include",
+      body: JSON.stringify({
+        username: data.username,
+        password: data.password,
+        rememberMe: data.rememberMe,
+      }),
+    })
+
+    if (result.ok && result.data) {
+      setIsLoggedIn(true)
+      setAuthData(result.data as unknown as AuthData)
+    }
+
+    return result
   }
 
-  const logoutClosure = (callback: (success: boolean) => void) => {
-    logout(setIsLoggedIn, setAuthData, callback)
+  async function logout(): Promise<FormResult> {
+    const result = await submitFormData(API.logout, {
+      credentials: "include",
+    })
+
+    if (result.ok) {
+      setIsLoggedIn(false)
+      setAuthData(DEFAULT_AUTH_DATA)
+    }
+
+    return result
   }
 
   useEffect(() => {
-    setLoginStatus(setIsLoggedIn, setAuthData, setIsLoading)
+    const validateSession = async () => {
+      try {
+        const response = await fetch(API.validateSession, {
+          method: "POST",
+          credentials: "include",
+          signal: AbortSignal.timeout(5000),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setIsLoggedIn(true)
+          setAuthData(data)
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    validateSession()
   }, [])
 
   return (
-    <AuthContext.Provider value={{isLoading, isLoggedIn, authData, register: registerClosure, login: loginClosure, logout: logoutClosure}}>
+    <AuthContext.Provider value={{ isLoading, isLoggedIn, authData, register, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

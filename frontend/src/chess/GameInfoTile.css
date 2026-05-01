@@ -1,0 +1,181 @@
+.gameInfoContainer {
+  display: flex;
+  flex-direction: column;
+  width: 15vw;
+  height: 60vh;
+}
+
+.gameInfo {
+  width: 100%;
+  height: 70%;
+	margin: 0 auto;
+  margin-left: 10px;
+  background-color: grey;
+  box-shadow: 2px 2px #131313;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: large;
+}
+
+.pieceCount {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 10vh;
+  margin-left: 10px;
+}
+
+.playerTimeBottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 10%;
+	margin: 0 auto;
+  margin-left: 10px;
+  background-color: grey;
+  border-top: 10px solid #161512;
+  box-shadow: 2px 2px #131313;
+  font-family: Arial, Helvetica, sans-serif;
+  border-bottom-right-radius: 4px;
+}
+
+.playerTimeTop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 10%;
+	margin: 0 auto;
+  margin-left: 10px;
+  background-color: grey;
+  border-bottom: 10px solid #161512;
+  box-shadow: 2px 2px #131313;
+  font-family: Arial, Helvetica, sans-serif;
+  border-top-right-radius: 4px;
+}
+
+.playerInfo {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 12.5%;
+}
+
+.playerName {
+  display: flex;
+  width: 90%;
+  height: 100%;
+  text-align: left;
+  align-items: center;
+  justify-content: left;
+  color: black;
+  overflow: hidden;
+  padding-left: 0.5em;
+}
+
+.moveHistoryControlsContainer {
+  display: flex;
+  justify-content: space-between;
+  height: 12.5%;
+  color: black;
+  overflow: visible;
+  padding-bottom: 2px;
+  box-shadow: 0 2px #131313;
+  background-color: #343232;
+}
+
+.moveHistoryControlsButton {
+  display: flex;
+  width: 15%;
+  height: 100%;
+  background-color: transparent;
+  border: #000000;
+  justify-content: center;
+  align-items: center;
+}
+
+.moveHistoryControlsButton:hover {
+  background-color: orange;
+  cursor: pointer;
+}
+
+@keyframes flash {
+  0% { background-color: transparent; }
+  50% { background-color: green; }
+  100% { background-color: 1; }
+}
+
+.moveHistoryControlsButton.newMoveNotification {
+  animation: flash 1s infinite;
+}
+
+.movesContainer {
+  height: 50%;
+  color: black;
+  overflow: hidden;
+  text-align: left;
+  overflow-y: auto;
+  background-color: transparent;
+}
+
+.movesContainer table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.movesRow td {
+  width: 40%;
+  background-color: grey;
+}
+
+.movesRow td:hover:not(.highlight):not(:first-child) {
+  background-color: aqua;
+  cursor: pointer;
+}
+
+.movesRow .highlight {
+  background-color: rgb(0 255 255 / 50%);
+  cursor: pointer;
+}
+
+.movesRow td:first-child {
+  width: 20%;
+  background-color: #343232;
+}
+
+.gameControlsContainer {
+  display: flex;
+  justify-content: space-between;
+  height: 12.5%;
+  overflow: hidden;
+}
+
+.gameControlsButton {
+  display: flex;
+  width: 15%;
+  height: 100%;
+  background-color: transparent;
+  border: #000000;
+  justify-content: center;
+  align-items: center;
+}
+
+.gameControlsButton:hover {
+  background-color: orange;
+  cursor: pointer;
+}
+
+.playerPingStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 7%;
+  height: 100%;
+  margin: auto;
+  padding-left: 4px;
+}
+
+.playerPingStatus.connected {
+  background-color: rgba(82, 244, 7, 100);
+  border-color: rgba(82, 244, 7, 100);
+}

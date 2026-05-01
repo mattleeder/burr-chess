@@ -3,6 +3,7 @@ import { Dropdown, DropdownItem } from "./Dropdown.tsx"
 import { ToggleDropdown, ToggleDropdownItem, ToggleDropdownSubmenu } from './ToggleDropdown.tsx';
 import { Settings } from 'lucide-react';
 import { NavbarSearch } from './NavSearch.tsx';
+import './TopNavBar.css';
 import { LatencyDisplay } from './LatencyDisplay.tsx';
 import { Link } from "react-router-dom";
 import { AuthContext } from './auth/AuthContext.tsx';

@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from "react"
 import { formatTimePassed, PlayerInfoTileData } from "../PlayerInfoTile"
 import { Flame, LoaderCircle, Rabbit, TrainFront, Turtle } from "lucide-react"
 import { useParams } from "react-router-dom"
-import { matchData, MatchTile } from "../WatchPage"
+import { pastMatchData, MatchTile } from "../WatchPage"
 import { PingStatus } from "../chess/GameInfoTile"
+import { API } from "../api"
+import "./AccountPage.css"
 
 enum Page {
   All = "all",
@@ -70,7 +72,7 @@ function AccountInfoDisplay({ accountInfo }: { accountInfo: PlayerInfoTileData |
 }
 
 
-function AccountContent({ pageData }: { pageData: matchData[] | undefined }) {
+function AccountContent({ pageData }: { pageData: pastMatchData[] | undefined }) {
 
   if (pageData === undefined || pageData === null) {
     return (
@@ -85,9 +87,9 @@ function AccountContent({ pageData }: { pageData: matchData[] | undefined }) {
       marginRight: "auto",
     }}>
       <ul>
-        {pageData.map((matchData, idx) => {
+        {pageData.map((pastMatchData, idx) => {
           return (
-            <MatchTile key={`match_${matchData.matchID}`} matchData={matchData} idx={idx}/>
+            <MatchTile key={`match_${pastMatchData.matchID}`} matchData={pastMatchData} idx={idx}/>
           )
         })}
       </ul>
@@ -95,8 +97,13 @@ function AccountContent({ pageData }: { pageData: matchData[] | undefined }) {
   )
 }
 
-async function fetchPageData(username: string, activePage: Page, pageCache: React.RefObject<Map<Page, matchData[]>>, signal: AbortSignal) {
-  let url = import.meta.env.VITE_API_GET_PAST_MATCHES_URL
+interface FetchResult<T> {
+  data?: T
+  error: boolean
+}
+
+async function fetchPageData(username: string, activePage: Page, pageCache: React.RefObject<Map<Page, pastMatchData[]>>, signal: AbortSignal): Promise<FetchResult<pastMatchData[]>> {
+  let url = API.getPastMatches
   const searchParams: [string, string][] = []
 
   if (username != "") {
@@ -110,34 +117,29 @@ async function fetchPageData(username: string, activePage: Page, pageCache: Reac
   if (searchParams.length > 0) {
     url += "?"
   }
-  
+
   for (const [searchTerm, value] of searchParams) {
     url += `${searchTerm}=${value}&`
   }
 
   try {
-    const response = await fetch(url, {
-      signal: signal,
-      method: "GET",
-    })
+    const response = await fetch(url, { signal, method: "GET" })
 
     if (response.ok) {
-      console.log(response)
-      const responseData: matchData[] = await response.json()
-      console.log(responseData)
-      pageCache.current?.set(activePage, responseData)
-      return responseData
+      const data: pastMatchData[] = await response.json()
+      pageCache.current?.set(activePage, data)
+      return { data, error: false }
     }
-
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return { error: false }
     console.error(e)
   }
 
-  return undefined
+  return { error: true }
 }
 
 async function fetchUserData(username: string, signal: AbortSignal) {
-  const url = import.meta.env.VITE_API_GET_TILE_INFO_URL + `?search=${username}`
+  const url = API.getTileInfo + `?search=${username}`
 
   try {
     const response = await fetch(url, {
@@ -146,9 +148,7 @@ async function fetchUserData(username: string, signal: AbortSignal) {
     })
 
     if (response.ok) {
-      console.log(response)
       const responseData: PlayerInfoTileData = await response.json()
-      console.log(responseData)
       return responseData
     }
 
@@ -162,9 +162,10 @@ async function fetchUserData(username: string, signal: AbortSignal) {
 export function AccountPage() {
   const { username } = useParams()
   const [activePage, setActivePage] = useState(Page.All)
-  const [pageData, setPageData] = useState<matchData[] | undefined>(undefined)
+  const [pageData, setPageData] = useState<pastMatchData[] | undefined>(undefined)
+  const [pageError, setPageError] = useState(false)
   const [playerData, setPlayerData] = useState<PlayerInfoTileData | undefined>(undefined)
-  const pageCache = useRef(new Map<Page, matchData[]>()) // Should be a ref instead
+  const pageCache = useRef(new Map<Page, pastMatchData[]>())
   const [loadingPlayerData, setLoadingPlayerData] = useState(true)
   const [loadingContent, setLoadingContent] = useState(true)
 
@@ -197,13 +198,22 @@ export function AccountPage() {
     const signal = controller.signal;
 
     (async() => {
-      console.log(pageCache)
-      const pageData = pageCache.current?.get(activePage) || fetchPageData(username || "", activePage, pageCache, signal)
+      const cached = pageCache.current?.get(activePage)
+      if (cached) {
+        if (!ignore) {
+          setPageData(cached)
+          setPageError(false)
+          setLoadingContent(false)
+        }
+        return
+      }
+      const result = await fetchPageData(username || "", activePage, pageCache, signal)
       if (!ignore) {
-        setPageData(await pageData)
+        setPageData(result.data)
+        setPageError(result.error)
         setLoadingContent(false)
-      }}
-    )()
+      }
+    })()
 
     return () => {
       ignore = true
@@ -288,7 +298,7 @@ export function AccountPage() {
         marginRight: "auto",
       }}>
         {loadingPlayerData ? <LoaderCircle className="loaderSpin"/> : <AccountInfoDisplay accountInfo={playerData}/>}
-        {loadingContent ? <LoaderCircle className="loaderSpin"/> : <AccountContent pageData={pageData}/>}
+        {loadingContent ? <LoaderCircle className="loaderSpin"/> : pageError ? <div>Failed to load matches.</div> : <AccountContent pageData={pageData}/>}
       </div>
     </>
   )

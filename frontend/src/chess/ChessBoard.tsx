@@ -1,6 +1,8 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { PieceColour, PieceVariant } from "./ChessLogic";
 import { GameContext, gameContext } from "./GameContext";
+import { API } from "../api";
+import "./ChessBoard.css";
 
 const colourToString = new Map<PieceColour, string>()
 
@@ -40,8 +42,6 @@ function getSquareIdxFromClick(x: number, y: number, rect?: React.RefObject<Rect
   const boardXPosition = Math.floor((x - rect.current.left) / squareWidth)
   const boardYPosition = Math.floor((y - rect.current.top) / squareWidth)
   const position =  boardYPosition * 8 + boardXPosition
-  console.log(`Clicked on ${x}x, ${y}y which is position ${position}`)
-  console.log(`Clicked on ${x- rect.current.left}x, ${y - rect.current.top}y which is position ${position}`)
   return position
 }
 
@@ -81,7 +81,6 @@ async function clickHandler(
     setWaiting(false)
     return
   } else if (game.matchData.gameOverStatus != 0) {
-    console.log("Game has finished")
     setWaiting(false)
     return
   } else if (promotionActive && [0, 8, 16, 24].includes(Math.abs(position - promotionSquare))) {
@@ -191,7 +190,7 @@ async function fetchPossibleMoves(position: number, game: gameContext) {
     if (!mostRecentMove) {
       return
     }
-    const response = await fetch(import.meta.env.VITE_API_FETCH_MOVES_URL, {
+    const response = await fetch(API.fetchMoves, {
       "method": "POST",
       "body": JSON.stringify({
         "fen": mostRecentMove["FEN"],
@@ -290,7 +289,6 @@ function PiecesComponent({ flip, squareWidth, onDragEndCallback, rect, colour, v
       key={`${colourToString.get(colour)}-${variantToString.get(variant)}`}
       draggable={true}
       onDragEnd={(event) => {
-        console.log(`onDragEnd ${event.clientX}, ${event.clientY}`)
         const endPosition = getSquareIdxFromClick(event.clientX, event.clientY, rect)
         onDragEndCallback(index, endPosition)
       }}
@@ -477,12 +475,6 @@ export function ChessBoard({ resizeable, defaultWidth, chessboardContainerStyles
     throw new Error('ChessBoard must be used within a GameContext Provider');
   }
 
-  useEffect(() => {
-    console.log("ChessBoard mount")
-    return () => {
-      console.log("ChessBoard unmount")
-    }
-  }, [])
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver((entries) => {

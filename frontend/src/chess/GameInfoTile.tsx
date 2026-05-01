@@ -4,6 +4,7 @@ import { PieceColour, PieceVariant, parseGameStateFromFEN } from "./ChessLogic";
 import { GameContext, OpponentEventType, gameContext, boardHistory, SQLNullString } from "./GameContext";
 import { variantToString } from "./ChessBoard";
 import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from "../PlayerInfoTile";
+import "./GameInfoTile.css";
 
 
 function isClockPaused(game: gameContext, colour: PieceColour) {
@@ -124,8 +125,6 @@ function PlayerInfo({ connected, username }: { connected: boolean, username: SQL
 }
 
 function updateActiveState(stateHistoryIndex: number, game: gameContext) {
-  console.log("updateActiveState Called")
-  console.log(stateHistoryIndex)
   if (!game) {
     throw new Error("updateActiveState must be called within a GameContext")
   }
@@ -297,7 +296,7 @@ function EventTypeDialog() {
     }
   }, [game.millisecondsUntilOpponentTimeout])
 
-  console.log(`Threefold Repetition? ${game.threefoldRepetition}`)
+
 
   if (game.matchData.gameOverStatus != 0) {
     return (
@@ -449,7 +448,7 @@ function PlayerPieceCounts({ colour }: { colour: PieceColour }) {
       newPieceCount.set(variant, count)
     }
 
-    console.log(newPieceCount)
+
 
     setPieceCount(newPieceCount)
   }, [game.matchData.activeState.board])

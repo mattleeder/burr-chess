@@ -10,13 +10,6 @@ export function MatchRoom() {
   const { timeFormatInMilliseconds } = location.state || {};
   const parsedTimeFormatInMilliseconds = parseInt(timeFormatInMilliseconds)
 
-  useEffect(() => {
-    console.log("MatchRoom mount")
-    return () => {
-      console.log("MatchRoom unmount")
-    }
-  }, [])
-
   return (
     <GameWrapper matchID={matchid as string} timeFormatInMilliseconds={parsedTimeFormatInMilliseconds}>
       <div className='chessMatch'>

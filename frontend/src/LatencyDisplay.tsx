@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import './LatencyDisplay.css';
 
 function fetchUserPing() {
   return 10

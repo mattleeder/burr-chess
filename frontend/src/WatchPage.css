@@ -1,0 +1,21 @@
+.matchRow {
+  position: relative;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 0.5fr 1fr;
+  padding: 1em;
+  margin: auto;
+}
+
+.even {
+  background-color: #33312e;
+}
+
+.odd {
+  background-color: #262421;
+}
+
+.matchRow:hover {
+  background-color: #3487d5;
+  cursor: pointer;
+}

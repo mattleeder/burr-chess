@@ -20,9 +20,6 @@ import { AccountSettingsPage } from './auth/AccountSettings.tsx';
 import { ProtectedRoute } from './auth/ProtectedRoute.tsx';
 
 function App() {
-  console.log(import.meta.env.VITE_API_URL)
-  console.log(`React Version: ${React.version}`)
-
   return (
     <>
       <AuthProvider>

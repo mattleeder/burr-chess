@@ -1,0 +1,29 @@
+.queueTilesContainer {
+  display: grid;
+  grid-template-columns: auto auto auto;
+}
+
+.queueButton {
+  font-size: 1.5em;
+  width: 100px;
+  height: 100px;
+  background-color: #343232;
+  border: #343232;
+  border-radius: 4px;
+  padding: 8px;
+  margin: 4px;
+}
+
+.queueButton:has(.loaderSpin) {
+  background-color: #e77a06;
+}
+
+.queueButton:hover {
+  background-color: #e77a06;
+  cursor: pointer;
+}
+
+.queueTilesTitle {
+  font-size: 1.5em;
+  color: #ffffff;
+}

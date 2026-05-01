@@ -17,9 +17,6 @@ export function ProtectedRoute({ element }: { element: React.ReactNode }) {
     throw new Error("ProtectedRoute must be used within an AuthContext")
   }
 
-  console.log("AUTH")
-  console.log(auth)
-
   if (auth.isLoading) {
     return (
       <></>

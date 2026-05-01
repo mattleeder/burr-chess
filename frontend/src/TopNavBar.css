@@ -1,0 +1,150 @@
+.topNavBar {
+  position: fixed;
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  height: 3em;
+  top: 0;
+  left: 0;
+  background-color: #343232;
+  align-items: center;
+  z-index: 3;
+}
+
+.navBarContainer {
+  display: flex;
+  height: 100%;
+  align-items: center;
+}
+
+.left {
+  margin-right: auto;
+}
+
+.right {
+  margin-left: auto;
+}
+
+.navBarContainer a {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  height: 100%;
+  padding-right: 10px;
+  color: #000;
+  vertical-align: middle;
+}
+
+.dropdownContainer {
+  position: relative;
+  height: 100%;
+  display: inline-block;
+}
+
+.dropdownMenu {
+  list-style-type: none;
+}
+
+.dropdownTitle {
+  position: relative;
+  height: 100%;
+  border-left: 2px solid transparent;
+}
+
+button.dropdownTitle {
+  background-color: transparent;
+  border: none;
+  border-right: 2px solid transparent;
+}
+
+.left .dropdownTitle.active {
+  background-color: #7e7e7d;
+  border-left: 2px solid #3487d5;
+}
+
+.right .dropdownTitle.active {
+  background-color: #7e7e7d;
+  border-right: 2px solid #3487d5;
+}
+
+.dropdownContent {
+  width: 200%;
+  display: block;
+  position: absolute;
+  background-color: #7e7e7d;
+  text-align: left;
+  z-index: 3;
+}
+
+.left .dropdownContent {
+  border-left: 2px solid #3487d5;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  box-shadow: 2px 2px 2px black;
+}
+
+.right .dropdownContent {
+  right: 0%;
+  border-right: 2px solid #3487d5;
+  border-top-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  box-shadow: 2px 2px 2px black;
+}
+
+.dropdownContent ul {
+  text-align: left;
+  list-style-type: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.dropdownContent ul a {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.dropdownItem {
+  color: black;
+}
+
+.left .dropdownItem:first-child {
+  border-top-right-radius: 4px;
+}
+
+.left .dropdownItem:last-child {
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.right .dropdownItem:first-child {
+  border-top-left-radius: 4px;
+}
+
+.right .dropdownItem:last-child {
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.dropdownItem:hover {
+  background-color: #3487d5;
+  cursor: pointer;
+}
+
+.navbarIcon {
+  color: #000000;
+}
+
+.navbarIcon:hover {
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.siteName:hover {
+  color: #ffffff;
+  cursor: pointer;
+}

@@ -1,43 +1,21 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import React from "react";
+export interface FormResult<T = unknown> {
+  ok: boolean
+  data?: T
+  networkError?: boolean
+}
 
-export async function submitFormData(
-  formURL: string,
-  options?: RequestInit,
-  callback?: (success: boolean, responseData?: unknown) => void,
-  setLoading?: React.Dispatch<React.SetStateAction<boolean>>) {
-
-  if (setLoading !== undefined) {
-    setLoading(true)
+export async function submitFormData<T = unknown>(url: string, options?: RequestInit): Promise<FormResult<T>> {
+  let response: Response
+  try {
+    response = await fetch(new Request(url, { method: "POST" }), options)
+  } catch {
+    return { ok: false, networkError: true }
   }
 
-  const request = new Request(formURL, {
-    method: "POST",
-  })
-  let isResponseOK = false // Used when await response.json() fails due to empty response
-  let parsed = false
-
   try {
-
-    const response = await fetch(request, options)
-    isResponseOK = response.ok
-
-    const responseData = await response.json()
-    parsed = true
-    if (callback !== undefined) {
-      callback(isResponseOK, responseData)
-    }
-
-  } catch (e) {
-    console.log(e)
-    if (callback !== undefined && !parsed) {
-      // Called when bad fetch or await response.json() fail
-      callback(isResponseOK)
-    }
-
-  } finally {
-    if (setLoading !== undefined) {
-      setLoading(false)
-    }
+    const data: T = await response.json()
+    return { ok: response.ok, data }
+  } catch {
+    return { ok: response.ok }
   }
 }

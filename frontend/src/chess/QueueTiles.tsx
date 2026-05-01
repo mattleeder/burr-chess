@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react"
 import { LoaderCircle } from "lucide-react"
 import { NavigateFunction, useNavigate } from "react-router-dom"
+import { API } from "../api"
+import "./QueueTiles.css"
 
 interface QueueObject {
   timeFormatInMilliseconds: number,
@@ -58,7 +60,7 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
     throw new Error("Queue object not found")
   }
 
-  const response = await fetch(import.meta.env.VITE_API_JOIN_QUEUE_URL, {
+  const response = await fetch(API.joinQueue, {
     signal: AbortSignal.timeout(5000),
     method: "POST",
     credentials: 'include',
@@ -74,13 +76,11 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
   }
 
   // Joined, start listening for events
-  eventSource.current = new EventSource(import.meta.env.VITE_API_MATCH_LISTEN_URL, {
+  eventSource.current = new EventSource(API.listenForMatch, {
     withCredentials: true,
   })
 
   eventSource.current.onmessage = (event) => {
-    console.log(`message: ${event.data}`)
-
     if (event.data == "heartbeat") {
       return
     }
@@ -109,7 +109,7 @@ async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<Eve
   if (queueObject === undefined) {
     throw new Error("Queue object not found")
   }
-  const response = await fetch(import.meta.env.VITE_API_JOIN_QUEUE_URL, {
+  const response = await fetch(API.joinQueue, {
     method: "POST",
     credentials: 'include',
     body: JSON.stringify({
@@ -220,7 +220,6 @@ export function QueueTiles() {
 
   useEffect(() => {
     if (matchFoundState.current != null) {
-      console.log(matchFoundState.current)
       navigate("matchroom/" + matchFoundState.current.matchRoom, { state: matchFoundState.current })
     }
   }, [matchFoundState.current])

@@ -1,6 +1,12 @@
-import React, { useRef } from 'react';
-import { ReactNode, useState, useEffect, createContext } from "react"
+import { useRef, useReducer, useCallback, useEffect, useState, createContext } from "react"
+import type { ReactNode, Dispatch } from "react"
 import { parseGameStateFromFEN, PieceColour, PieceVariant } from "./ChessLogic"
+import { SQLNullString } from "../types"
+import { API } from "../api"
+
+// ── Shared types ──
+
+export type { SQLNullString }
 
 export interface boardInfo {
   board: [PieceColour | null, PieceVariant | null][],
@@ -26,15 +32,22 @@ export interface matchData {
   gameOverStatus: number,
 }
 
-export interface SQLNullString {
-  String: string
-  Valid: boolean
+export enum OpponentEventType {
+  None = "none",
+  Takeback = "takeback",
+  Draw = "draw",
+  Rematch = "rematch",
+  Disconnect = "disconnect",
+  Decline = "decline",
+  Resign = "resign",
+  ThreefoldRepetition = "threefoldRepetition"
 }
+
+// ── Context interface (unchanged for consumers) ──
 
 export interface gameContext {
   matchData: matchData,
-  setMatchData: React.Dispatch<React.SetStateAction<matchData>>,
-  // webSocket: WebSocket | null,
+  setMatchData: Dispatch<React.SetStateAction<matchData>>,
   webSocket: React.RefObject<WebSocket | null>,
   playerColour: PieceColour,
   isWhiteConnected: boolean,
@@ -42,26 +55,20 @@ export interface gameContext {
   whitePlayerUsername: SQLNullString,
   blackPlayerUsername: SQLNullString,
   opponentEventType: OpponentEventType,
-  setOpponentEventType: React.Dispatch<React.SetStateAction<OpponentEventType>>,
+  setOpponentEventType: Dispatch<React.SetStateAction<OpponentEventType>>,
   millisecondsUntilOpponentTimeout: number | null,
   threefoldRepetition: boolean,
-  setThreefoldRepetition: React.Dispatch<React.SetStateAction<boolean>>,
+  setThreefoldRepetition: Dispatch<React.SetStateAction<boolean>>,
   flip: boolean,
-  setFlip: React.Dispatch<React.SetStateAction<boolean>>,
+  setFlip: Dispatch<React.SetStateAction<boolean>>,
 }
 
 export const GameContext = createContext<gameContext | null>(null)
 
-export interface MatchStateHistory {
-  FEN: string
-  lastMove: [number, number]
-  algebraicNotation: string
-  whitePlayerTimeRemainingMilliseconds: number
-  blackPlayerTimeRemainingMilliseconds: number
-}
+// ── WebSocket message types ──
 
 interface OnConnectMessage {
-  matchStateHistory: MatchStateHistory[]
+  matchStateHistory: boardHistory[]
   gameOverStatus: number
   threefoldRepetition: boolean
   whitePlayerConnected: boolean
@@ -71,7 +78,7 @@ interface OnConnectMessage {
 }
 
 interface OnMoveMessage {
-  matchStateHistory: MatchStateHistory[]
+  matchStateHistory: boardHistory[]
   gameOverStatus: number
   threefoldRepetition: boolean
 }
@@ -86,201 +93,215 @@ interface PlayerCodeMessage {
   playerCode: number
 }
 
-interface ChessWebSocketMessage {
-  messageType: string
-  body: OnConnectMessage | OnMoveMessage | ConnectionStatusMessage | PlayerCodeMessage | OpponentEventMessage
-}
-
 interface OpponentEventMessage {
   sender: string,
   eventType: string,
 }
 
-export enum OpponentEventType {
-  None = "none",
-  Takeback = "takeback",
-  Draw = "draw",
-  Rematch = "rematch",
-  Disconnect = "disconnect",
-  Decline = "decline",
-  Resign = "resign",
-  ThreefoldRepetition = "threefoldRepetition"
+interface ChessWebSocketMessage {
+  messageType: string
+  body: OnConnectMessage | OnMoveMessage | ConnectionStatusMessage | PlayerCodeMessage | OpponentEventMessage
 }
 
-function sendPlayerCodeHandler(
-  body: PlayerCodeMessage, 
-  setPlayerColour: React.Dispatch<React.SetStateAction<PieceColour>>,
-) {
-  if (body["playerCode"] == 0) {
-    setPlayerColour(PieceColour.White)
-  } else if (body["playerCode"] == 1) {
-    setPlayerColour(PieceColour.Black)
-  }
+// ── Reducer ──
+
+interface GameState {
+  matchData: matchData
+  playerColour: PieceColour
+  isWhiteConnected: boolean
+  isBlackConnected: boolean
+  whitePlayerUsername: SQLNullString
+  blackPlayerUsername: SQLNullString
+  millisecondsUntilOpponentTimeout: number | null
+  opponentEventType: OpponentEventType
+  threefoldRepetition: boolean
 }
 
-function onConnectHandler(
-  body: OnConnectMessage, 
-  setIsWhiteConnected: React.Dispatch<React.SetStateAction<boolean>>, 
-  setIsBlackConnected: React.Dispatch<React.SetStateAction<boolean>>,
-  setOpponentEventType: React.Dispatch<React.SetStateAction<OpponentEventType>>,
-  matchData: matchData,
-  setMatchData: React.Dispatch<React.SetStateAction<matchData>>,
-  setThreefoldRepetition: React.Dispatch<React.SetStateAction<boolean>>,
-  setWhitePlayerUsername: React.Dispatch<React.SetStateAction<SQLNullString>>,
-  setBlackPlayerUsername: React.Dispatch<React.SetStateAction<SQLNullString>>,
-) {
-  onMoveHandler(body as OnMoveMessage, setOpponentEventType, matchData, setMatchData, setThreefoldRepetition)
-  setIsWhiteConnected(body["whitePlayerConnected"])
-  setIsBlackConnected(body["blackPlayerConnected"])
-  setWhitePlayerUsername(body["whitePlayerUsername"])
-  setBlackPlayerUsername(body["blackPlayerUsername"])
-}
+type GameAction =
+  | { type: "PLAYER_CODE"; body: PlayerCodeMessage }
+  | { type: "ON_CONNECT"; body: OnConnectMessage }
+  | { type: "ON_MOVE"; body: OnMoveMessage }
+  | { type: "CONNECTION_STATUS"; body: ConnectionStatusMessage }
+  | { type: "OPPONENT_EVENT"; body: OpponentEventMessage }
+  | { type: "SET_MATCH_DATA"; matchData: matchData }
+  | { type: "SET_OPPONENT_EVENT_TYPE"; eventType: OpponentEventType }
+  | { type: "SET_THREEFOLD_REPETITION"; value: boolean }
 
-function connectionStatusHandler(
-  body: ConnectionStatusMessage,
-  setIsWhiteConnected: React.Dispatch<React.SetStateAction<boolean>>, 
-  setIsBlackConnected: React.Dispatch<React.SetStateAction<boolean>>,
-  setMillisecondsUntilOpponentTimeout: React.Dispatch<React.SetStateAction<number | null>>,
-) {
-  if (body["playerColour"] == "white") {
-    setIsWhiteConnected(body["isConnected"])
-  } else if (body["playerColour"] == "black") {
-    setIsBlackConnected(body["isConnected"])
-  }
-    
-  if (body["isConnected"]) {
-    // Should always be opponent
-    setMillisecondsUntilOpponentTimeout(null)
-  } else {
-    setMillisecondsUntilOpponentTimeout(body["millisecondsUntilTimeout"])
-  }
-}
-
-function onMoveHandler(
-  body: OnMoveMessage,
-  setOpponentEventType: React.Dispatch<React.SetStateAction<OpponentEventType>>,
-  matchData: matchData,
-  setMatchData: React.Dispatch<React.SetStateAction<matchData>>,
-  setThreefoldRepetition: React.Dispatch<React.SetStateAction<boolean>>
-) {
-  setThreefoldRepetition(body["threefoldRepetition"])
-  setOpponentEventType(OpponentEventType.None)
-  const newHistory = body["matchStateHistory"]
-  if (newHistory.length == 0) {
+function applyMoveMessage(state: GameState, body: OnMoveMessage): GameState {
+  const newHistory = body.matchStateHistory
+  if (newHistory.length === 0) {
     console.error("New history has length 0")
-    return
+    return state
   }
-  const latestHistoryEntry = newHistory.at(-1) as MatchStateHistory
-  const latestFEN = latestHistoryEntry["FEN"]
-  const activeColour = parseGameStateFromFEN(latestFEN)["activeColour"]
-  const gameOverStatus = body["gameOverStatus"]
 
-  let activeState = {
-    ...matchData.activeState,
-    whitePlayerTimeRemainingMilliseconds:  latestHistoryEntry["whitePlayerTimeRemainingMilliseconds"],
-    blackPlayerTimeRemainingMilliseconds:  latestHistoryEntry["blackPlayerTimeRemainingMilliseconds"],
+  const latestEntry = newHistory.at(-1) as boardHistory
+  const latestFEN = latestEntry.FEN
+  const activeColour = parseGameStateFromFEN(latestFEN).activeColour
+
+  let activeState: boardInfo = {
+    ...state.matchData.activeState,
+    whitePlayerTimeRemainingMilliseconds: latestEntry.whitePlayerTimeRemainingMilliseconds,
+    blackPlayerTimeRemainingMilliseconds: latestEntry.blackPlayerTimeRemainingMilliseconds,
   }
-  let activeMove = matchData.activeMove
+  let activeMove = state.matchData.activeMove
 
-  if (matchData.activeState.FEN == matchData.stateHistory.at(-1)?.FEN) {
+  if (state.matchData.activeState.FEN === state.matchData.stateHistory.at(-1)?.FEN) {
     activeState = {
       ...activeState,
       board: parseGameStateFromFEN(latestFEN).board,
-      lastMove: latestHistoryEntry["lastMove"],
+      lastMove: latestEntry.lastMove,
       FEN: latestFEN,
     }
     activeMove = newHistory.length - 1
   }
 
-  const newMatchData: matchData = {
-    activeState: activeState,
-    stateHistory: newHistory,
-    activeColour: activeColour,
-    gameOverStatus: gameOverStatus,
-    activeMove: activeMove,
-  }
-
-  setMatchData(newMatchData)
-}
-
-function opponentEventHandler(body: OpponentEventMessage, setOpponentEventType: React.Dispatch<React.SetStateAction<OpponentEventType>>,) {
-  switch (body.eventType) {
-
-  case "takeback":
-    setOpponentEventType(OpponentEventType.Takeback)
-    break
-
-  case "draw":
-    setOpponentEventType(OpponentEventType.Draw)
-    break
-
-  case "rematch":
-    setOpponentEventType(OpponentEventType.Rematch)
-    break
-
+  return {
+    ...state,
+    threefoldRepetition: body.threefoldRepetition,
+    opponentEventType: OpponentEventType.None,
+    matchData: {
+      activeState,
+      stateHistory: newHistory,
+      activeColour,
+      gameOverStatus: body.gameOverStatus,
+      activeMove,
+    },
   }
 }
 
-function readMessage(
-  message: unknown,
-  setPlayerColour: React.Dispatch<React.SetStateAction<PieceColour>>,
-  setIsWhiteConnected: React.Dispatch<React.SetStateAction<boolean>>,
-  setIsBlackConnected: React.Dispatch<React.SetStateAction<boolean>>,
-  setMillisecondsUntilOpponentTimeout: React.Dispatch<React.SetStateAction<number | null>>,
-  setOpponentEventType: React.Dispatch<React.SetStateAction<OpponentEventType>>,
-  matchData: matchData,
-  setMatchData: React.Dispatch<React.SetStateAction<matchData>>,
-  setThreefoldRepetition: React.Dispatch<React.SetStateAction<boolean>>,
-  setWhitePlayerUsername: React.Dispatch<React.SetStateAction<SQLNullString>>,
-  setBlackPlayerUsername: React.Dispatch<React.SetStateAction<SQLNullString>>,
-) {
-  console.log("FROM WEBSOCKET")
-  console.log(message)
+function gameReducer(state: GameState, action: GameAction): GameState {
+  switch (action.type) {
+  case "PLAYER_CODE":
+    if (action.body.playerCode === 0) {
+      return { ...state, playerColour: PieceColour.White }
+    } else if (action.body.playerCode === 1) {
+      return { ...state, playerColour: PieceColour.Black }
+    }
+    return state
 
-  if (typeof message != "string") {
-    return
+  case "ON_MOVE":
+    return applyMoveMessage(state, action.body)
+
+  case "ON_CONNECT": {
+    const afterMove = applyMoveMessage(state, action.body as OnMoveMessage)
+    return {
+      ...afterMove,
+      isWhiteConnected: action.body.whitePlayerConnected,
+      isBlackConnected: action.body.blackPlayerConnected,
+      whitePlayerUsername: action.body.whitePlayerUsername,
+      blackPlayerUsername: action.body.blackPlayerUsername,
+    }
   }
 
-  for (const msg of message.split("\n")) {
-    const parsedMsg: ChessWebSocketMessage = JSON.parse(msg)
+  case "CONNECTION_STATUS": {
+    const next = { ...state }
+    if (action.body.playerColour === "white") {
+      next.isWhiteConnected = action.body.isConnected
+    } else if (action.body.playerColour === "black") {
+      next.isBlackConnected = action.body.isConnected
+    }
+    next.millisecondsUntilOpponentTimeout = action.body.isConnected
+      ? null
+      : action.body.millisecondsUntilTimeout
+    return next
+  }
 
-    const messageType = parsedMsg["messageType"]
+  case "OPPONENT_EVENT":
+    switch (action.body.eventType) {
+    case "takeback":
+      return { ...state, opponentEventType: OpponentEventType.Takeback }
+    case "draw":
+      return { ...state, opponentEventType: OpponentEventType.Draw }
+    case "rematch":
+      return { ...state, opponentEventType: OpponentEventType.Rematch }
+    }
+    return state
 
-    switch (messageType) {
+  case "SET_MATCH_DATA":
+    return { ...state, matchData: action.matchData }
+
+  case "SET_OPPONENT_EVENT_TYPE":
+    return { ...state, opponentEventType: action.eventType }
+
+  case "SET_THREEFOLD_REPETITION":
+    return { ...state, threefoldRepetition: action.value }
+  }
+}
+
+// ── WebSocket message dispatcher ──
+
+function dispatchWebSocketMessage(data: unknown, dispatch: Dispatch<GameAction>) {
+  if (typeof data !== "string") return
+
+  for (const msg of data.split("\n")) {
+    const parsed: ChessWebSocketMessage = JSON.parse(msg)
+
+    switch (parsed.messageType) {
     case "sendPlayerCode":
-      sendPlayerCodeHandler(parsedMsg["body"] as PlayerCodeMessage, setPlayerColour)
-      break;
+      dispatch({ type: "PLAYER_CODE", body: parsed.body as PlayerCodeMessage })
+      break
     case "onConnect":
-      onConnectHandler(parsedMsg["body"] as OnConnectMessage, setIsWhiteConnected, setIsBlackConnected, setOpponentEventType, matchData, setMatchData, setThreefoldRepetition, setWhitePlayerUsername, setBlackPlayerUsername)
-      break;
+      dispatch({ type: "ON_CONNECT", body: parsed.body as OnConnectMessage })
+      break
     case "connectionStatus":
-      connectionStatusHandler(parsedMsg["body"] as ConnectionStatusMessage, setIsWhiteConnected, setIsBlackConnected, setMillisecondsUntilOpponentTimeout)
-      break;
+      dispatch({ type: "CONNECTION_STATUS", body: parsed.body as ConnectionStatusMessage })
+      break
     case "onMove":
-      onMoveHandler(parsedMsg["body"] as OnMoveMessage, setOpponentEventType, matchData, setMatchData, setThreefoldRepetition)
-      break;
+      dispatch({ type: "ON_MOVE", body: parsed.body as OnMoveMessage })
+      break
     case "opponentEvent":
-      opponentEventHandler(parsedMsg["body"] as OpponentEventMessage, setOpponentEventType)
-      break;
+      dispatch({ type: "OPPONENT_EVENT", body: parsed.body as OpponentEventMessage })
+      break
     default:
-      console.error("Could not understand message from websocket")
-      console.log(message)
+      console.error("Could not understand message from websocket:", parsed.messageType)
     }
   }
 }
 
-export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { children: ReactNode, matchID: string, timeFormatInMilliseconds: number }) {
-  const [matchData, setMatchData] = useState<matchData>(
-    {
+// ── useGameWebSocket hook ──
+
+function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
+  const webSocket = useRef<WebSocket | null>(null)
+
+  useEffect(() => {
+    const connect = () => {
+      webSocket.current = new WebSocket(API.matchRoom + "/" + matchID + "/ws")
+      webSocket.current.onmessage = (event) => dispatchWebSocketMessage(event.data, dispatch)
+      webSocket.current.onerror = (event) => console.error(event)
+      webSocket.current.onclose = () => {
+        console.log("WebSocket closed, attempting reconnect")
+        connect()
+      }
+    }
+    connect()
+
+    return () => {
+      if (webSocket.current) {
+        webSocket.current.onclose = null
+        webSocket.current.close()
+      }
+    }
+  }, [matchID, dispatch])
+
+  return webSocket
+}
+
+// ── GameWrapper component ──
+
+const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+function createInitialState(timeFormatInMilliseconds: number): GameState {
+  return {
+    matchData: {
       activeState: {
-        board: parseGameStateFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")["board"],
+        board: parseGameStateFromFEN(INITIAL_FEN).board,
         lastMove: [0, 0],
-        FEN: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        FEN: INITIAL_FEN,
         whitePlayerTimeRemainingMilliseconds: timeFormatInMilliseconds,
         blackPlayerTimeRemainingMilliseconds: timeFormatInMilliseconds,
       },
       stateHistory: [{
-        FEN: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        FEN: INITIAL_FEN,
         lastMove: [0, 0],
         algebraicNotation: "",
         whitePlayerTimeRemainingMilliseconds: timeFormatInMilliseconds,
@@ -289,59 +310,69 @@ export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { c
       activeColour: PieceColour.White,
       activeMove: 0,
       gameOverStatus: 0,
-    })
-  const webSocket = useRef<WebSocket | null>(null)
-  const webSocketReconnectTimeout = useRef(1000)
-  const [playerColour, setPlayerColour] = useState(PieceColour.Spectator)
-  const [isWhiteConnected, setIsWhiteConnected] = useState(false)
-  const [isBlackConnected, setIsBlackConnected] = useState(false)
-  const [whitePlayerUsername, setWhitePlayerUsername] = useState<SQLNullString>({String: "", Valid: false})
-  const [blackPlayerUsername, setBlackPlayerUsername] = useState<SQLNullString>({String: "", Valid: false})
-  const [millisecondsUntilOpponentTimeout, setMillisecondsUntilOpponentTimeout] = useState<number | null>(null)
-  const [opponentEventType, setOpponentEventType] = useState(OpponentEventType.None)
-  const [threefoldRepetition, setThreefoldRepetition] = useState(false)
+    },
+    playerColour: PieceColour.Spectator,
+    isWhiteConnected: false,
+    isBlackConnected: false,
+    whitePlayerUsername: { String: "", Valid: false },
+    blackPlayerUsername: { String: "", Valid: false },
+    millisecondsUntilOpponentTimeout: null,
+    opponentEventType: OpponentEventType.None,
+    threefoldRepetition: false,
+  }
+}
+
+export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { children: ReactNode, matchID: string, timeFormatInMilliseconds: number }) {
+  const [state, dispatch] = useReducer(gameReducer, timeFormatInMilliseconds, createInitialState)
   const [flip, setFlip] = useState(false)
+  const webSocket = useGameWebSocket(matchID, dispatch)
 
   useEffect(() => {
-    console.log("GameWrapper mount")
-    return () => {
-      console.log("GameWrapper unmount")
-    }
-  }, [])
+    setFlip(state.playerColour === PieceColour.Black)
+  }, [state.playerColour])
 
-  useEffect(() => {
-    setFlip(playerColour == PieceColour.Black)
-  }, [playerColour])
+  const setMatchData = useCallback<Dispatch<React.SetStateAction<matchData>>>((action) => {
+    if (typeof action === "function") {
+      dispatch({ type: "SET_MATCH_DATA", matchData: action(state.matchData) })
+    } else {
+      dispatch({ type: "SET_MATCH_DATA", matchData: action })
+    }
+  }, [state.matchData])
 
-  useEffect(() => {
-    const webSocketConnect = () => {
-      webSocket.current = new WebSocket(import.meta.env.VITE_API_MATCHROOM_URL + matchID + '/ws')
-      webSocket.current.onopen = () => console.log("Websocket connected")
-      webSocket.current.onmessage = (event) => readMessage(event.data, setPlayerColour, setIsWhiteConnected, setIsBlackConnected, setMillisecondsUntilOpponentTimeout, setOpponentEventType, matchData, setMatchData, setThreefoldRepetition, setWhitePlayerUsername, setBlackPlayerUsername)
-      webSocket.current.onerror = (event) => console.error(event)
-      webSocket.current.onclose = () => {
-        // Should be exponential backoff but server not hanling match not found properly
-        console.log(`WebSocket closed, attempting reconnect in ${Math.floor(webSocketReconnectTimeout.current / 1000)}s`)
-        webSocketConnect()
-      }
+  const setOpponentEventType = useCallback<Dispatch<React.SetStateAction<OpponentEventType>>>((action) => {
+    if (typeof action === "function") {
+      dispatch({ type: "SET_OPPONENT_EVENT_TYPE", eventType: action(state.opponentEventType) })
+    } else {
+      dispatch({ type: "SET_OPPONENT_EVENT_TYPE", eventType: action })
     }
-    webSocketConnect()
-    return () => {
-      if (webSocket.current == null) {
-        return
-      }
-      webSocket.current.onclose = () => console.log("Closing WebSocket")
-      webSocket.current.close()
+  }, [state.opponentEventType])
+
+  const setThreefoldRepetition = useCallback<Dispatch<React.SetStateAction<boolean>>>((action) => {
+    if (typeof action === "function") {
+      dispatch({ type: "SET_THREEFOLD_REPETITION", value: action(state.threefoldRepetition) })
+    } else {
+      dispatch({ type: "SET_THREEFOLD_REPETITION", value: action })
     }
-  }, [matchID])
-  
-  useEffect(() => {
-    console.log("GAMEWRAPPER:")
-    console.log(matchData)
-  }, [matchData])
-  
+  }, [state.threefoldRepetition])
+
   return (
-    <GameContext.Provider value={{ matchData, setMatchData, webSocket, playerColour, isWhiteConnected, isBlackConnected, opponentEventType, setOpponentEventType, millisecondsUntilOpponentTimeout, threefoldRepetition, setThreefoldRepetition, flip, setFlip, whitePlayerUsername, blackPlayerUsername }}>
+    <GameContext.Provider value={{
+      matchData: state.matchData,
+      setMatchData,
+      webSocket,
+      playerColour: state.playerColour,
+      isWhiteConnected: state.isWhiteConnected,
+      isBlackConnected: state.isBlackConnected,
+      whitePlayerUsername: state.whitePlayerUsername,
+      blackPlayerUsername: state.blackPlayerUsername,
+      opponentEventType: state.opponentEventType,
+      setOpponentEventType,
+      millisecondsUntilOpponentTimeout: state.millisecondsUntilOpponentTimeout,
+      threefoldRepetition: state.threefoldRepetition,
+      setThreefoldRepetition,
+      flip,
+      setFlip,
+    }}>
       {children}
     </GameContext.Provider>
   )

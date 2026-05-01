@@ -1,50 +1,46 @@
 import React, { useContext, useState } from 'react';
-import { Link, useNavigate, NavigateFunction, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FormError } from '../ui/forms/FormError';
-import { AuthContext, AuthContextType, LoginFormValidationErrors } from './AuthContext';
+import { AuthContext, LoginFormValidationErrors } from './AuthContext';
+import './Auth.css';
 
 // When redirected to login can use ?referrer=/somePage to redirect after successful login attempt
-
-async function handleFormSubmit(auth: AuthContextType, formData: FormData, navigate: NavigateFunction, setLoading: React.Dispatch<React.SetStateAction<boolean>>, setValidationErrors: React.Dispatch<React.SetStateAction<LoginFormValidationErrors>>) {
-  setLoading(true)
-  const redirectUrl = formData.get("referrer") as string || "/"
-  const loginData = {
-    username: formData.get("username") as string,
-    password: formData.get("password") as string,
-    rememberMe: formData.get("rememberMe") == "true" ? true : false,
-  }
-
-  console.log(loginData)
-
-  const loginCallback = (success: boolean, responseData: LoginFormValidationErrors | undefined) => {
-    if (success) {
-      navigate(redirectUrl)
-    } else {
-      if (responseData != undefined) {
-        setValidationErrors(responseData)
-      }
-    }
-  }
-
-  auth.login(loginData, loginCallback)
-  setLoading(false)
-}
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [remember, setRemember] = useState(false)
-  const [searchParams, _setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [validationErrors, setValidationErrors] = useState({
+  const [validationErrors, setValidationErrors] = useState<LoginFormValidationErrors>({
     username: "",
     password: "",
   })
   const auth = useContext(AuthContext)
-  
+
+  const handleSubmit = async (formData: FormData) => {
+    if (loading) return
+    setLoading(true)
+
+    const redirectUrl = formData.get("referrer") as string || "/"
+    const result = await auth.login({
+      username: formData.get("username") as string,
+      password: formData.get("password") as string,
+      rememberMe: formData.get("rememberMe") === "true",
+    })
+
+    if (result.ok) {
+      navigate(redirectUrl)
+    } else if (result.data) {
+      setValidationErrors(result.data)
+    }
+
+    setLoading(false)
+  }
+
   return (
-    <form action={(formData) => {if (!loading) {handleFormSubmit(auth, formData, navigate, setLoading, setValidationErrors)}}}>
+    <form action={handleSubmit}>
       <div className='formGroup'>
         <label htmlFor="username">Username</label>
         <input name="username" type="text" required={true} value={username} onChange={(event) => setUsername(event.target.value)}/>
@@ -65,7 +61,7 @@ function LoginForm() {
 }
 
 function LoginOptions() {
-  const [searchParams, _setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const referrer = searchParams.get("referrer")
   let registerUrl = "/register"
   if (referrer != null) {

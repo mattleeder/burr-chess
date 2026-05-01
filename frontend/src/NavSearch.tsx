@@ -2,6 +2,8 @@ import { Search } from 'lucide-react';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from './PlayerInfoTile.tsx';
 import { Link } from 'react-router-dom';
+import { API } from './api';
+import './NavSearch.css';
 
 interface navbarSearchResult {
   username: string
@@ -11,8 +13,7 @@ interface navbarSearchResult {
 }
 
 async function fetchSearchResults(searchString: string) {
-  console.log(`Search string: ${searchString}`)
-  const url = import.meta.env.VITE_API_USER_SEARCH_URL + `?search=${searchString}`
+  const url = API.userSearch + `?search=${searchString}`
 
   try {
     const response = await fetch(url, {
@@ -85,9 +86,6 @@ export function NavbarSearch() {
   const [searchResults, setSearchResults] = useState<navbarSearchResult[]>([])
   const [searchValue, setSearchValue] = useState("")
 
-  useEffect(() => {
-    console.log(searchResults)
-  }, [searchResults])
 
 
   // Close search input if mouse not over

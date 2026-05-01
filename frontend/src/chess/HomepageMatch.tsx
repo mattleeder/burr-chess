@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { GameContext, GameWrapper } from "./GameContext";
 import { ChessBoard } from "./ChessBoard";
+import { API } from "../api";
 
 
 function sleep(delayMs: number){
@@ -13,14 +14,12 @@ async function fetchHighestEloMatchID(signal: AbortSignal) {
   while (true) {
 
     try {
-      const response = await fetch(import.meta.env.VITE_API_FETCH_HIGHEST_ELO_MATCH_URL, {
+      const response = await fetch(API.fetchHighestElo, {
         signal,
         "method": "GET",
         "mode": "cors",
       })
 
-      console.log(response)
-      
       if (!response.ok) {
         throw new Error(`Response status: ${response.status}`)
       }
@@ -32,7 +31,6 @@ async function fetchHighestEloMatchID(signal: AbortSignal) {
     catch (error: unknown) {
       if (error instanceof Error) {
         if (error.name == "AbortError") {
-          console.log("Request was aborted")
           return
         }
         console.error(error.message)

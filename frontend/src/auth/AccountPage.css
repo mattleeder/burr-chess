@@ -1,0 +1,57 @@
+.userTimeFormat {
+  display: flex;
+  cursor: pointer;
+  padding-left: 1em;
+  height: 4em;
+  align-items: center;
+}
+
+.userTimeFormat.active {
+  background-color: #ababaa;
+}
+
+.userTimeFormat:hover {
+  background-color: #ababaa;
+}
+
+.sidebarContainer {
+  font: 1em sans-serif;
+  color: #ffffff;
+  display: block;
+  width: 60em;
+  height: 50em;
+  background-color: #343232;
+  border-radius: 4px;
+}
+
+.sidebarButtonContainer {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 1em;
+}
+
+.sidebarButton {
+  font: 1em sans-serif;
+  height: 4em;
+  color: #ffffff;
+  display: block;
+  background-color: transparent;
+  border: transparent;
+  border-right: 4px solid transparent;
+}
+
+.sidebarButton:hover {
+  background-color: #3692e7;
+}
+
+.sidebarButton.active {
+  border-right: 4px solid #3692e7;
+}
+
+.sidebarContent {
+  width: 90%;
+  height: 90%;
+  margin: auto;
+  padding: 1em;
+}

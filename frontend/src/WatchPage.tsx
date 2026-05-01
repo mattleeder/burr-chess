@@ -4,16 +4,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { FrozenChessBoard } from "./chess/ChessBoard";
 import { parseGameStateFromFEN } from "./chess/ChessLogic";
 import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from "./PlayerInfoTile";
-
-interface SQLNullString {
-  String: string
-  Valid: boolean
-}
-
-interface SQLNullInt64 {
-  Int64: number
-  Valid: boolean
-}
+import { SQLNullString, SQLNullInt64 } from "./types";
+import { API } from "./api";
+import "./WatchPage.css";
 
 const resultReasons = [
   "Ongoing",
@@ -31,7 +24,7 @@ const resultReasons = [
   "BlackDisconnected",
 ]
 
-export interface matchData {
+export interface pastMatchData {
   matchID: number
   whitePlayerUsername: SQLNullString
   blackPlayerUsername: SQLNullString
@@ -64,27 +57,28 @@ function FormatIcon({ timeFormatInMilliseconds, style }: { timeFormatInMilliseco
   }
 }
 
-async function fetchMatches(searchParams: URLSearchParams, signal: AbortSignal) {
+interface FetchMatchesResult {
+  matches: pastMatchData[]
+  error: boolean
+}
+
+async function fetchMatches(searchParams: URLSearchParams, signal: AbortSignal): Promise<FetchMatchesResult> {
   const timeFormat = searchParams.get("timeFormat") || ""
-  console.log(`Time format: ${timeFormat}`)
-  const url = import.meta.env.VITE_API_GET_PAST_MATCHES_URL + `?timeFormat=${timeFormat}`
+  const url = API.getPastMatches + `?timeFormat=${timeFormat}`
 
   try {
-    const response = await fetch(url, {
-      signal: signal,
-      method: "GET",
-    })
+    const response = await fetch(url, { signal, method: "GET" })
 
     if (response.ok) {
-      console.log(response)
-      const responseData: matchData[] = await response.json()
-      console.log(responseData)
-      return responseData
+      const matches: pastMatchData[] = await response.json()
+      return { matches, error: false }
     }
-
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return { matches: [], error: false }
     console.error(e)
   }
+
+  return { matches: [], error: true }
 }
 
 function getTimeFormatName(timeFormatInMilliseconds: number) {
@@ -100,7 +94,7 @@ function getTimeFormatName(timeFormatInMilliseconds: number) {
   }
 }
 
-export function MatchTile({ matchData, idx }: { matchData: matchData, idx: number }) {
+export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: number }) {
   const playerInfoTile = useContext<PlayerInfoTileContextInterface>(PlayerInfoTileContext)
   let outcome = ""
   if (matchData.result == 0) {
@@ -153,7 +147,7 @@ export function MatchTile({ matchData, idx }: { matchData: matchData, idx: numbe
               {/* White info*/}
               {matchData.whitePlayerUsername.Valid ? 
                 <span style={{position:"relative", zIndex: "4"}}
-                  onMouseEnter={(event) => {console.log("Enter"); playerInfoTile?.spawnPlayerInfoTile(matchData.whitePlayerUsername.String, event)}}
+                  onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(matchData.whitePlayerUsername.String, event)}
                   onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(matchData.whitePlayerUsername.String, event)}
                 >
                   {`${matchData.whitePlayerUsername.String} (${matchData.whitePlayerElo} ${matchData.whitePlayerEloGain >= 0 ? "+" : ""}${matchData.whitePlayerEloGain})`}
@@ -169,7 +163,7 @@ export function MatchTile({ matchData, idx }: { matchData: matchData, idx: numbe
               {/* Black info */}
               {matchData.blackPlayerUsername.Valid ? 
                 <span style={{position:"relative", zIndex: "4"}}
-                  onMouseEnter={(event) => {console.log("Enter"); playerInfoTile?.spawnPlayerInfoTile(matchData.blackPlayerUsername.String, event)}}
+                  onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(matchData.blackPlayerUsername.String, event)}
                   onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(matchData.blackPlayerUsername.String, event)}
                 >
                   {`${matchData.blackPlayerUsername.String} (${matchData.blackPlayerElo} ${matchData.blackPlayerEloGain >= 0 ? "+" : ""}${matchData.blackPlayerEloGain})`}
@@ -189,16 +183,17 @@ export function MatchTile({ matchData, idx }: { matchData: matchData, idx: numbe
 
 export function WatchPage() {
   const [fetchingMatches, setFetchingMatches] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [searchParams, _setSearchParams] = useSearchParams()
-  const [matchList, setMatchList] = useState<matchData[]>([])
+  const [matchList, setMatchList] = useState<pastMatchData[]>([])
 
   useEffect(() => {
     const controller = new AbortController()
     const signal = controller.signal
     const getMatchList = async () => {
-      const matchList = await fetchMatches(searchParams, signal)
-      console.log(matchList)
-      setMatchList(matchList || [])
+      const result = await fetchMatches(searchParams, signal)
+      setMatchList(result.matches)
+      setFetchError(result.error)
       setFetchingMatches(false)
     }
     getMatchList()
@@ -212,6 +207,12 @@ export function WatchPage() {
       <div>
         <LoaderCircle className="loaderSpin"/>
       </div>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <div>Failed to load matches.</div>
     )
   }
 
