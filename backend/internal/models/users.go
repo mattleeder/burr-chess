@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const PASSWORD_COST = 16
+const PASSWORD_COST = 14
 
 type UserQuery struct {
 	whereClause string
