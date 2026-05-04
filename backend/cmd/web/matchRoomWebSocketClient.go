@@ -31,13 +31,16 @@ var (
 	space   = []byte{' '}
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		return origin == "http://localhost:5173"
-	},
+func (app *application) newUpgrader() websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			app.infoLog.Printf("WS CheckOrigin: got=%q want=%q", origin, app.corsOrigin)
+			return origin == app.corsOrigin
+		},
+	}
 }
 
 type MatchRoomHubClient struct {
@@ -136,6 +139,7 @@ func serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
 
 	var playerID = app.sessionManager.GetInt64(r.Context(), "playerID")
 
+	upgrader := app.newUpgrader()
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		app.serverError(w, err, false)

@@ -1,5 +1,3 @@
-import React from "react";
-
 export function FormError({ errorMessage }: { errorMessage: string }) {
   let className = "formError"
   if (errorMessage == "") {

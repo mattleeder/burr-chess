@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import { useContext, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FormError } from '../ui/forms/FormError';
 import { AuthContext, RegisterFormValidationErrors } from './AuthContext';

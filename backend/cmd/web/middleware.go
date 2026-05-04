@@ -105,31 +105,12 @@ func secureHeaders(next http.Handler) http.Handler {
 	})
 }
 
-func corsHeaders(next http.Handler) http.Handler {
+func (app *application) corsHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// CORS
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Origin", app.corsOrigin)
 		w.Header().Set("Access-Control-Max-Age", "10")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-func sseHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// SSE
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-func secureWithCors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		corsHeaders(secureHeaders(nil))
 
 		next.ServeHTTP(w, r)
 	})

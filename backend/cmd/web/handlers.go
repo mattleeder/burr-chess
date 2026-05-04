@@ -133,14 +133,14 @@ var clients = Clients{
 	clients: make(map[int64]*Client),
 }
 
-func matchFoundSSEHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Set appropriate headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+	w.Header().Set("Access-Control-Allow-Origin", app.corsOrigin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Access-Control-Max-Age", "10")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")

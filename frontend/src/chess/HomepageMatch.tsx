@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { GameContext, GameWrapper } from "./GameContext";
 import { ChessBoard } from "./ChessBoard";
 import { API } from "../api";

@@ -6,6 +6,7 @@ import (
 	"burrchess/internal/models"
 	"crypto/tls"
 	"database/sql"
+	"encoding/hex"
 	"flag"
 	"log"
 	"net/http"
@@ -30,14 +31,28 @@ type application struct {
 	userRatings    *models.UserRatingsModel
 	dbTaskQueue    *models.TaskQueue
 	sessionManager *scs.SessionManager
+	corsOrigin     string
 }
 
 var app *application
 
 func main() {
-	addr := flag.String("addr", ":8080", "HTTPS network address")
+	// addr := flag.String("addr", ":8080", "HTTPS network address")
 	dbDriverName := flag.String("db", "sqlite", "Database Driver Name")
-	dbDataSourceName := flag.String("dsn", "file:chess_site.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", "Database Data Source Name")
+	// dbDataSourceName := flag.String("dsn", "file:chess_site.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", "Database Data Source Name")
+
+	addr := os.Getenv("ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+
+	dsn := os.Getenv("DSN")
+	if dsn == "" {
+		dsn = "file:chess_site.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	}
+
+	addrFlag := flag.String("addr", addr, "HTTPS network address")
+	dbDataSourceName := flag.String("dsn", dsn, "Database Data Source Name")
 
 	flag.Parse()
 
@@ -83,11 +98,26 @@ func main() {
 	sessionManager.HashTokenInStore = true
 	sessionManager.Cookie = scs.SessionCookie{
 		Name:     "session",
-		Domain:   "localhost",
+		Path:     "/",
 		HttpOnly: true,
 		Persist:  false,
 		SameSite: http.SameSiteNoneMode,
 		Secure:   true,
+	}
+
+	secretKeyHex := os.Getenv("SECRET_KEY")
+	if secretKeyHex == "" {
+		errorLog.Fatal("SECRET_KEY environment variable not set")
+	}
+
+	secretKey, err := hex.DecodeString(secretKeyHex)
+	if err != nil {
+		errorLog.Fatal("SECRET_KEY must be a valid hex string: ", err)
+	}
+
+	corsOrigin := os.Getenv("CORS_ORIGIN")
+	if corsOrigin == "" {
+		errorLog.Fatal("CORS_ORIGIN environment variable not set")
 	}
 
 	app = &application{
@@ -95,13 +125,14 @@ func main() {
 		infoLog:        infoLog,
 		perfLog:        perfLog,
 		debugLog:       debugLog,
-		secretKey:      []byte("}\xa4\xc3\x85D\x89\xb75\xf0\xe6\xcf\xcaZ\x00k\x88\xe4\x8f\xd0\xd6\x95\x0e\xa6\xf9\xc2;!\xa2\xc4[\xca\x91"),
+		secretKey:      secretKey,
 		liveMatches:    &models.LiveMatchModel{DB: db},
 		pastMatches:    &models.PastMatchModel{DB: db},
 		users:          &models.UserModel{DB: db},
 		userRatings:    &models.UserRatingsModel{DB: db},
 		dbTaskQueue:    models.DBTaskQueue,
 		sessionManager: sessionManager,
+		corsOrigin:     corsOrigin,
 	}
 
 	go func() {
@@ -135,7 +166,7 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:         *addr,
+		Addr:         *addrFlag,
 		ErrorLog:     errorLog,
 		Handler:      app.routes(),
 		TLSConfig:    tlsConfig,
@@ -146,7 +177,7 @@ func main() {
 
 	go matchmakingService()
 
-	app.infoLog.Printf("Starting server on %s", *addr)
+	app.infoLog.Printf("Starting server on %s", addr)
 	err = srv.ListenAndServeTLS("cmd/web/localhost.crt", "cmd/web/localhost.key")
 	if err != nil {
 		errorLog.Fatal(err)

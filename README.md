@@ -28,16 +28,10 @@ I wanted a project that forced me to connect a React frontend to a real backend 
 ## Getting started
 
 ```powershell
-# Backend
-cd backend
-go build ./cmd/web && web.exe
-
-# Frontend (in a separate terminal)
-cd frontend
-npm install
-npm run dev
+# Frontend & Backend
+docker-compose up --build
 ```
 
-Open `http://localhost:5173` to play.
+Open `https://localhost/` to play.
 
 ![screenshot](./queue_demo.gif)

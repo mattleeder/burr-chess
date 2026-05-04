@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { Dropdown, DropdownItem } from "./Dropdown.tsx"
 import { ToggleDropdown, ToggleDropdownItem, ToggleDropdownSubmenu } from './ToggleDropdown.tsx';
 import { Settings } from 'lucide-react';

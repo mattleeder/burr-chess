@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { CircleUserRound, LogOut } from 'lucide-react';
 import { ToggleDropdown, ToggleDropdownItem } from '../ToggleDropdown.tsx';
 import { AuthContext } from './AuthContext.tsx';

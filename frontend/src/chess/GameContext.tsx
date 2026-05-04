@@ -265,7 +265,7 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
 
   useEffect(() => {
     const connect = () => {
-      webSocket.current = new WebSocket(API.matchRoom + "/" + matchID + "/ws")
+      webSocket.current = new WebSocket(API.matchRoom.replace("https://", "wss://") + "/" + matchID + "/ws")
       webSocket.current.onmessage = (event) => dispatchWebSocketMessage(event.data, dispatch)
       webSocket.current.onerror = (event) => console.error(event)
       webSocket.current.onclose = () => {

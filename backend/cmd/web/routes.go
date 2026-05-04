@@ -16,11 +16,11 @@ func wrapWithSessionManager(sm *scs.SessionManager, handler http.Handler) http.H
 }
 
 func withLogSessionSecureCorsChain(handlerFunc http.HandlerFunc) http.Handler {
-	return app.withPerfLog(app.logRequest(app.recoverPanic(wrapWithSessionManager(app.sessionManager, secureHeaders(corsHeaders(http.HandlerFunc(handlerFunc)))))))
+	return app.withPerfLog(app.logRequest(app.recoverPanic(wrapWithSessionManager(app.sessionManager, secureHeaders(app.corsHeaders(http.HandlerFunc(handlerFunc)))))))
 }
 
 func withLogSecureCorsChain(handlerFunc http.HandlerFunc) http.Handler {
-	return app.withPerfLog(app.logRequest(app.recoverPanic(secureHeaders(corsHeaders(http.HandlerFunc(handlerFunc))))))
+	return app.withPerfLog(app.logRequest(app.recoverPanic(secureHeaders(app.corsHeaders(http.HandlerFunc(handlerFunc))))))
 }
 
 func (app *application) routes() http.Handler {
@@ -37,14 +37,14 @@ func (app *application) routes() http.Handler {
 	mux.Handle("POST /logout", withLogSessionSecureCorsChain(logoutHandler))
 	mux.Handle("POST /validateSession", withLogSessionSecureCorsChain(validateSessionHandler))
 	mux.Handle("GET /getAccountSettings", withLogSessionSecureCorsChain(getUserAccountSettingsHandler))
-	mux.Handle("POST /updateEmail", withLogSessionSecureCorsChain(updateEmailHandler))
-	mux.Handle("POST /updatePassword", withLogSessionSecureCorsChain(updatePasswordHandler))
+	mux.Handle("POST /emailChange", withLogSessionSecureCorsChain(updateEmailHandler))
+	mux.Handle("POST /passwordChange", withLogSessionSecureCorsChain(updatePasswordHandler))
 
 	mux.Handle("GET /userSearch", withLogSecureCorsChain(userSearchHandler))
 	mux.Handle("GET /getTileInfo", withLogSecureCorsChain(getTileInfoHandler))
 	mux.Handle("GET /getPastMatches", withLogSecureCorsChain(getPastMatchesListHandler))
 
-	mux.Handle("/listenformatch", app.withPerfLog(app.logRequest(app.recoverPanic(http.HandlerFunc(matchFoundSSEHandler)))))
+	mux.Handle("/listenformatch", app.withPerfLog(app.logRequest(app.recoverPanic(http.HandlerFunc(app.matchFoundSSEHandler)))))
 
 	// Add the pprof routes
 	mux.HandleFunc("/debug/pprof/", pprof.Index)

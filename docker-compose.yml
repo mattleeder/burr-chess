@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - DSN=file:/app/data/chess_site.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
+    volumes:
+      - ./data:/app/data  # persist SQLite db
+      - ./backend/cmd/web/localhost.crt:/app/cmd/web/localhost.crt
+      - ./backend/cmd/web/localhost.key:/app/cmd/web/localhost.key
+
+  frontend:
+    build: 
+      context: ./frontend
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+    ports:
+      - "443:443"
+    volumes:
+      - ./backend/cmd/web/localhost.crt:/etc/nginx/certs/localhost.crt
+      - ./backend/cmd/web/localhost.key:/etc/nginx/certs/localhost.key
+    depends_on:
+      - backend
