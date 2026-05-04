@@ -59,11 +59,18 @@ func buildAlgebraicNotation(piece int, move int, currentGameState gameState) str
 // applyMove mutates the game state by applying a move, handling castling, en passant,
 // promotion, and castling rights updates. Returns updated gameState and any notation suffix.
 func applyMove(currentGameState gameState, piece int, move int, promotionString string) (gameState, string) {
+	isCapture := currentGameState.board[move].piece != nil
+	isPawnMove := currentGameState.board[piece].piece.variant == Pawn
+
 	currentGameState.board[move].piece = currentGameState.board[piece].piece
 	currentGameState.board[piece].piece = nil
 
 	var newGameState = currentGameState
-	newGameState.halfMoveClock += 1
+	if isCapture || isPawnMove {
+		newGameState.halfMoveClock = 0
+	} else {
+		newGameState.halfMoveClock += 1
+	}
 	if newGameState.halfMoveClock%2 == 0 {
 		newGameState.fullMoveNumber += 1
 	}
