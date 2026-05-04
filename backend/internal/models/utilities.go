@@ -62,6 +62,8 @@ func QueryRowWithRetry(DB *sql.DB, query string, queryArgs []any, scanArgs []any
 		err = row.Scan(scanArgs...)
 		if err == nil {
 			return nil
+		} else if errors.Is(err, sql.ErrNoRows) {
+			return err
 		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)
