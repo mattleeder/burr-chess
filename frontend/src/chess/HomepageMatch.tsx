@@ -46,15 +46,17 @@ async function fetchHighestEloMatchID(signal: AbortSignal) {
 
 function GameOverListener({ callbackFunction }: { callbackFunction: () => void }) {
   const gameContext = useContext(GameContext)
+  const isGameOver = gameContext?.matchData.gameOverStatus !== undefined && gameContext?.matchData.gameOverStatus != 0
 
-  if (gameContext?.matchData.gameOverStatus !== undefined && gameContext?.matchData.gameOverStatus != 0) {
-    callbackFunction()
-  }
+  useEffect(() => {
+    if (isGameOver) {
+      callbackFunction()
+    }
+  }, [isGameOver, callbackFunction])
 
   return (
     <></>
   )
-
 }
 
 export function HomepageMatch() {

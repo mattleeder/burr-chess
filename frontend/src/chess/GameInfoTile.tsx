@@ -398,24 +398,24 @@ function CountdownTimer({ countdownTimerMilliseconds, paused, className } : { co
   //
   const [remainingTime, setRemainingTime] = useState(countdownTimerMilliseconds)
   
-  // May need to be called when countdownTimerMilliseconds changes
   useEffect(() => {
+    setRemainingTime(countdownTimerMilliseconds)
     const start = Date.now()
     const updateTimer = () => {
       const delta = Date.now() - start
       setRemainingTime(countdownTimerMilliseconds - delta)
     }
-  
+
     if (paused) {
       return
     }
-  
+
     const intervalID = setInterval(updateTimer, 1000)
-  
+
     return () => {
-      clearInterval(intervalID)      
+      clearInterval(intervalID)
     }
-  }, [paused])
+  }, [paused, countdownTimerMilliseconds])
   
   return (
     <div className={className} style={{backgroundColor: `${paused ? "#262421" : "#394823"}`}}>
