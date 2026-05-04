@@ -28,6 +28,7 @@ type playerState struct {
 	timeRemaining  time.Duration
 	connected      bool
 	timeout        <-chan time.Time
+	timeoutTimer   *time.Timer
 	timeoutStarted time.Time
 	elo            int64
 }
@@ -61,6 +62,7 @@ type MatchRoomHub struct {
 	moveHistory      []MatchStateHistory
 	timeOfLastMove   time.Time
 	flagTimer        <-chan time.Time
+	flagTimerHandle  *time.Timer
 
 	timeFormatInMilliseconds int64
 	increment                time.Duration
@@ -137,11 +139,13 @@ func newMatchRoomHub(matchID int64) (*MatchRoomHub, error) {
 
 	isTimerActive := splitFEN[5] != "1"
 	var flagTimer <-chan time.Time
+	var flagTimerHandle *time.Timer
 
 	if isTimerActive {
 		idx := byte(turn)
 		players[idx].timeRemaining -= time.Since(timeOfLastMove)
-		flagTimer = time.After(players[idx].timeRemaining)
+		flagTimerHandle = time.NewTimer(players[idx].timeRemaining)
+		flagTimer = flagTimerHandle.C
 	}
 
 	jsonStr, err := json.Marshal(currentGameState)
@@ -164,6 +168,7 @@ func newMatchRoomHub(matchID int64) (*MatchRoomHub, error) {
 		moveHistory:              currentGameState.Body.MatchStateHistory,
 		timeOfLastMove:           timeOfLastMove,
 		flagTimer:                flagTimer,
+		flagTimerHandle:          flagTimerHandle,
 		timeFormatInMilliseconds: matchState.TimeFormatInMilliseconds,
 		increment:                time.Duration(matchState.IncrementInMilliseconds) * time.Millisecond,
 		fenFreqMap:               fenFreqMap,
@@ -208,14 +213,22 @@ func (hub *MatchRoomHub) hasActiveClients() bool {
 
 // Turn and timer management
 
+func (hub *MatchRoomHub) setFlagTimer(d time.Duration) {
+	if hub.flagTimerHandle != nil {
+		hub.flagTimerHandle.Stop()
+	}
+	hub.flagTimerHandle = time.NewTimer(d)
+	hub.flagTimer = hub.flagTimerHandle.C
+}
+
 func (hub *MatchRoomHub) changeTurn() {
 	hub.turn = playerTurn(opponent(byte(hub.turn)))
 
 	if hub.isTimerActive {
-		hub.flagTimer = time.After(hub.players[byte(hub.turn)].timeRemaining)
+		hub.setFlagTimer(hub.players[byte(hub.turn)].timeRemaining)
 	} else if hub.turn == playerTurn(WhiteTurn) {
 		// Timer activates after black's first move
-		hub.flagTimer = time.After(hub.players[WhitePlayer].timeRemaining)
+		hub.setFlagTimer(hub.players[WhitePlayer].timeRemaining)
 		hub.isTimerActive = true
 	}
 }
@@ -516,6 +529,10 @@ func (hub *MatchRoomHub) acceptEventOffer(event eventType) {
 
 func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 	app.infoLog.Println("Ending Match")
+	if hub.flagTimerHandle != nil {
+		hub.flagTimerHandle.Stop()
+		hub.flagTimerHandle = nil
+	}
 	hub.flagTimer = nil
 
 	var gameState onMoveResponse
@@ -582,6 +599,10 @@ func (hub *MatchRoomHub) setConnected(client *MatchRoomHubClient) {
 	}
 	hub.players[idx].connected = true
 	hub.opponentCanClaim[opponent(idx)] = false
+	if hub.players[idx].timeoutTimer != nil {
+		hub.players[idx].timeoutTimer.Stop()
+		hub.players[idx].timeoutTimer = nil
+	}
 	hub.players[idx].timeout = nil
 
 	pingMessage, err := hub.pingStatusMessage(colorName(idx), true, 0)
@@ -599,7 +620,8 @@ func (hub *MatchRoomHub) setDisconnected(client *MatchRoomHubClient) {
 	}
 	hub.players[idx].connected = false
 	if !hub.gameEnded {
-		hub.players[idx].timeout = time.After(pingTimeout)
+		hub.players[idx].timeoutTimer = time.NewTimer(pingTimeout)
+		hub.players[idx].timeout = hub.players[idx].timeoutTimer.C
 		hub.players[idx].timeoutStarted = time.Now()
 	}
 
