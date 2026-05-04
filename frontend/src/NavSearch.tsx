@@ -72,7 +72,7 @@ function NavbarSearchResults({ active, loading, searchResults, searchValue }: { 
           key={searchResult.playerID}
           onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(searchResult.username, event)}
           onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(searchResult.username, event)}
-        ><Link to={`#${searchResult.playerID}`}><span>{searchResult.username}</span></Link></li>
+        ><Link to={`/user/${searchResult.username}`}><span>{searchResult.username}</span></Link></li>
       )
     })
   )
@@ -90,17 +90,14 @@ export function NavbarSearch() {
 
   // Close search input if mouse not over
   useEffect(() => {
-    window.addEventListener("click", () => {
+    const handler = () => {
       if (mouseOver.current != true) {
         setSearchActive(false)
       }
-    })
+    }
+    window.addEventListener("click", handler)
     return () => {
-      window.removeEventListener("click", () => {
-        if (!mouseOver.current != true) {
-          setSearchActive(false)
-        }
-      })
+      window.removeEventListener("click", handler)
     }
   }, [])
 

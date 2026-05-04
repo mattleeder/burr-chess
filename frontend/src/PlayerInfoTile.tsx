@@ -179,7 +179,7 @@ export function formatTimePassed(millisecondsSince: number) {
   for (const [text, milliseconds] of intervals) {
     if (millisecondsSince >= milliseconds) {
       const multiplier = Math.floor(millisecondsSince / milliseconds)
-      return `${multiplier}${text}${multiplier ? "s" : ""}`
+      return `${multiplier}${text}${multiplier !== 1 ? "s" : ""}`
     }
   }
 

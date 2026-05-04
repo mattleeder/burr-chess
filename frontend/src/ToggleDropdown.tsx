@@ -142,19 +142,15 @@ export function ToggleDropdown({ title, children, style }: { title: React.ReactN
 
   // Destroy dropdown if mouse not over
   useEffect(() => {
-    window.addEventListener("click", () => {
+    const handler = () => {
       if (mouseOver.current != true) {
         setDropdownActive(false)
         setMenuActive(false)
       }
-    })
+    }
+    window.addEventListener("click", handler)
     return () => {
-      window.removeEventListener("click", () => {
-        if (!mouseOver.current != true) {
-          setDropdownActive(false)
-          setMenuActive(false)
-        }
-      })
+      window.removeEventListener("click", handler)
     }
   }, [])
 
