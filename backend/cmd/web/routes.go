@@ -46,17 +46,17 @@ func (app *application) routes() http.Handler {
 
 	mux.Handle("/listenformatch", app.withPerfLog(app.logRequest(app.recoverPanic(http.HandlerFunc(app.matchFoundSSEHandler)))))
 
-	// Add the pprof routes
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// Add the pprof routes (localhost only)
+	mux.Handle("/debug/pprof/", requireLocalhost(http.HandlerFunc(pprof.Index)))
+	mux.Handle("/debug/pprof/cmdline", requireLocalhost(http.HandlerFunc(pprof.Cmdline)))
+	mux.Handle("/debug/pprof/profile", requireLocalhost(http.HandlerFunc(pprof.Profile)))
+	mux.Handle("/debug/pprof/symbol", requireLocalhost(http.HandlerFunc(pprof.Symbol)))
+	mux.Handle("/debug/pprof/trace", requireLocalhost(http.HandlerFunc(pprof.Trace)))
 
-	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	mux.Handle("/debug/pprof/block", requireLocalhost(pprof.Handler("block")))
+	mux.Handle("/debug/pprof/goroutine", requireLocalhost(pprof.Handler("goroutine")))
+	mux.Handle("/debug/pprof/heap", requireLocalhost(pprof.Handler("heap")))
+	mux.Handle("/debug/pprof/threadcreate", requireLocalhost(pprof.Handler("threadcreate")))
 
 	return mux
 }
