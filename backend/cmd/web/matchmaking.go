@@ -188,7 +188,7 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 		AverageElo:               averageElo,
 		WhitePlayerElo:           whitePlayerData.elo,
 		BlackPlayerElo:           blackPlayerData.elo,
-	}, nil, nil)
+	})
 	if err != nil {
 		app.errorLog.Printf("Error inserting new match: %v\n", err)
 		return err

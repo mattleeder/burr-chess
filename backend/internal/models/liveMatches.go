@@ -4,7 +4,6 @@ import (
 	"burrchess/internal/chess"
 	"database/sql"
 	"errors"
-	"sync"
 	"time"
 )
 
@@ -144,10 +143,10 @@ func (m *LiveMatchModel) InsertNew(p InsertNewParams) (int64, error) {
 	return result.LastInsertId()
 }
 
-func (m *LiveMatchModel) EnQueueReturnInsertNew(p InsertNewParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) (int64, error) {
+func (m *LiveMatchModel) EnQueueReturnInsertNew(p InsertNewParams) (int64, error) {
 	result, err := DBTaskQueue.EnQueueReturn(func() (any, error) {
 		return m.InsertNew(p)
-	}, waitFor, block)
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -159,10 +158,10 @@ func (m *LiveMatchModel) EnQueueReturnInsertNew(p InsertNewParams, waitFor *sync
 	return coercedResult, nil
 }
 
-func (m *LiveMatchModel) EnQueueInsertNew(p InsertNewParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
+func (m *LiveMatchModel) EnQueueInsertNew(p InsertNewParams) {
 	DBTaskQueue.EnQueue(func() (any, error) {
 		return m.InsertNew(p)
-	}, waitFor, block)
+	})
 }
 
 func (m *LiveMatchModel) GetFromMatchID(matchID int64) (*LiveMatchWithUsernames, error) {
@@ -229,10 +228,10 @@ func (m *LiveMatchModel) GetFromMatchID(matchID int64) (*LiveMatchWithUsernames,
 	return &match, nil
 }
 
-func (m *LiveMatchModel) EnQueueReturnGetFromMatchID(matchID int64, waitFor *sync.WaitGroup, block *sync.WaitGroup) (*LiveMatchWithUsernames, error) {
+func (m *LiveMatchModel) EnQueueReturnGetFromMatchID(matchID int64) (*LiveMatchWithUsernames, error) {
 	result, err := DBTaskQueue.EnQueueReturn(func() (any, error) {
 		return m.GetFromMatchID(matchID)
-	}, waitFor, block)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +267,7 @@ func (m *LiveMatchModel) EnQueueLogAll() {
 	DBTaskQueue.EnQueueErrorOnlyTask(func() error {
 		m.LogAll()
 		return nil
-	}, nil, nil)
+	})
 }
 
 func (m *LiveMatchModel) UpdateLiveMatch(p UpdateMatchParams) error {
@@ -315,17 +314,16 @@ func (m *LiveMatchModel) UpdateLiveMatch(p UpdateMatchParams) error {
 	return err
 }
 
-func (m *LiveMatchModel) EnQueueReturnUpdateLiveMatch(p UpdateMatchParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) error {
-	err := DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
+func (m *LiveMatchModel) EnQueueReturnUpdateLiveMatch(p UpdateMatchParams) error {
+	return DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
 		return m.UpdateLiveMatch(p)
-	}, waitFor, block)
-	return err
+	})
 }
 
-func (m *LiveMatchModel) EnQueueUpdateLiveMatch(p UpdateMatchParams, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
+func (m *LiveMatchModel) EnQueueUpdateLiveMatch(p UpdateMatchParams) {
 	DBTaskQueue.EnQueueErrorOnlyTask(func() error {
 		return m.UpdateLiveMatch(p)
-	}, waitFor, block)
+	})
 }
 
 func (m *LiveMatchModel) MoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) error {
@@ -434,17 +432,16 @@ func (m *LiveMatchModel) MoveMatchToPastMatches(matchID int64, result int, resul
 	return err
 }
 
-func (m *LiveMatchModel) EnQueueReturnMoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64, waitFor *sync.WaitGroup, block *sync.WaitGroup) error {
-	err := DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
+func (m *LiveMatchModel) EnQueueReturnMoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) error {
+	return DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
 		return m.MoveMatchToPastMatches(matchID, result, resultReason, whitePlayerEloGain, blackPlayerEloGain)
-	}, waitFor, block)
-	return err
+	})
 }
 
-func (m *LiveMatchModel) EnQueueMoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
+func (m *LiveMatchModel) EnQueueMoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) {
 	DBTaskQueue.EnQueueErrorOnlyTask(func() error {
 		return m.MoveMatchToPastMatches(matchID, result, resultReason, whitePlayerEloGain, blackPlayerEloGain)
-	}, waitFor, block)
+	})
 }
 
 func (m *LiveMatchModel) GetHighestEloMatch() (matchID int64, err error) {

@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sync"
 
 	_ "modernc.org/sqlite"
 )
@@ -29,8 +28,6 @@ type TaskResponse struct {
 type Task struct {
 	task    task
 	channel chan TaskResponse
-	waitFor *sync.WaitGroup // Wait for this group to be done before executing
-	block   *sync.WaitGroup // Block this group from executing until done
 }
 
 type TaskQueue struct {
@@ -53,18 +50,8 @@ func (taskQueue *TaskQueue) runWorker() {
 	for {
 		select {
 		case task := <-taskQueue.tasks:
-			// Wait
-			if task.waitFor != nil {
-				task.waitFor.Wait()
-			}
-
 			channel := task.channel
 			result, err := task.task()
-
-			// Remove block on completion
-			if task.block != nil {
-				task.block.Done()
-			}
 
 			if channel != nil {
 				channel <- TaskResponse{val: result, err: err}
@@ -73,35 +60,35 @@ func (taskQueue *TaskQueue) runWorker() {
 	}
 }
 
-func (taskQueue *TaskQueue) EnQueue(task task, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
-	taskQueue.tasks <- Task{task: task, channel: nil, waitFor: waitFor, block: block}
+func (taskQueue *TaskQueue) EnQueue(task task) {
+	taskQueue.tasks <- Task{task: task, channel: nil}
 }
 
-func (taskQueue *TaskQueue) EnQueueReturn(task task, waitFor *sync.WaitGroup, block *sync.WaitGroup) (any, error) {
+func (taskQueue *TaskQueue) EnQueueReturn(task task) (any, error) {
 	channel := make(chan TaskResponse, 1)
-	taskQueue.tasks <- Task{task: task, channel: channel, waitFor: waitFor, block: block}
+	taskQueue.tasks <- Task{task: task, channel: channel}
 	taskResponse := <-channel
 	return taskResponse.val, taskResponse.err
 }
 
-func (taskQueue *TaskQueue) EnQueueValueOnlyTask(task valueOnlyTask, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
-	taskQueue.tasks <- Task{task: wrapValueOnlyTask(task), channel: nil, waitFor: waitFor, block: block}
+func (taskQueue *TaskQueue) EnQueueValueOnlyTask(task valueOnlyTask) {
+	taskQueue.tasks <- Task{task: wrapValueOnlyTask(task), channel: nil}
 }
 
-func (taskQueue *TaskQueue) EnQueueReturnValueOnlyTask(task valueOnlyTask, waitFor *sync.WaitGroup, block *sync.WaitGroup) any {
+func (taskQueue *TaskQueue) EnQueueReturnValueOnlyTask(task valueOnlyTask) any {
 	channel := make(chan TaskResponse, 1)
-	taskQueue.tasks <- Task{task: wrapValueOnlyTask(task), channel: channel, waitFor: waitFor, block: block}
+	taskQueue.tasks <- Task{task: wrapValueOnlyTask(task), channel: channel}
 	taskResponse := <-channel
 	return taskResponse.val
 }
 
-func (taskQueue *TaskQueue) EnQueueErrorOnlyTask(task errorOnlyTask, waitFor *sync.WaitGroup, block *sync.WaitGroup) {
-	taskQueue.tasks <- Task{task: wrapErrorOnlyTask(task), channel: nil, waitFor: waitFor, block: block}
+func (taskQueue *TaskQueue) EnQueueErrorOnlyTask(task errorOnlyTask) {
+	taskQueue.tasks <- Task{task: wrapErrorOnlyTask(task), channel: nil}
 }
 
-func (taskQueue *TaskQueue) EnQueueReturnErrorOnlyTask(task errorOnlyTask, waitFor *sync.WaitGroup, block *sync.WaitGroup) error {
+func (taskQueue *TaskQueue) EnQueueReturnErrorOnlyTask(task errorOnlyTask) error {
 	channel := make(chan TaskResponse, 1)
-	taskQueue.tasks <- Task{task: wrapErrorOnlyTask(task), channel: channel, waitFor: waitFor, block: block}
+	taskQueue.tasks <- Task{task: wrapErrorOnlyTask(task), channel: channel}
 	taskResponse := <-channel
 	return taskResponse.err
 }
@@ -110,7 +97,7 @@ var app *application
 
 var DBTaskQueue *TaskQueue
 
-const numdbTaskQueueWorkers = 2
+const numdbTaskQueueWorkers = 1
 
 func init() {
 

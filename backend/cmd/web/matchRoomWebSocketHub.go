@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -74,13 +73,12 @@ type MatchRoomHub struct {
 	offerActive           *offerInfo
 	gameEnded             bool
 	isThreefoldRepetition bool
-	averageElo            float64
-	matchStartTime        int64
-	taskQueueWaitGroup    *sync.WaitGroup
+	averageElo     float64
+	matchStartTime int64
 }
 
 func newMatchRoomHub(matchID int64) (*MatchRoomHub, error) {
-	matchState, err := app.liveMatches.EnQueueReturnGetFromMatchID(matchID, nil, nil)
+	matchState, err := app.liveMatches.EnQueueReturnGetFromMatchID(matchID)
 	if err != nil {
 		app.errorLog.Println(err)
 		return nil, err
@@ -312,8 +310,6 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 		app.errorLog.Printf("Error marshalling matchStateHistoryData: %s", err)
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
 	app.liveMatches.EnQueueUpdateLiveMatch(models.UpdateMatchParams{
 		MatchID:                              hub.matchID,
 		NewFEN:                               newFEN,
@@ -323,8 +319,7 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 		BlackPlayerTimeRemainingMilliseconds: hub.players[BlackPlayer].timeRemaining.Milliseconds(),
 		MatchStateHistoryJSON:                matchStateHistoryData,
 		TimeOfLastMove:                       hub.timeOfLastMove,
-	}, hub.taskQueueWaitGroup, &wg)
-	hub.taskQueueWaitGroup = &wg
+	})
 
 	if gameOverStatus != chess.Ongoing {
 		return hub.endGame(gameOverStatus)
@@ -571,22 +566,17 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 
 	ratingType := models.GetRatingTypeFromTimeFormat(hub.timeFormatInMilliseconds)
 
-	// archiveWg blocks the rating updates until the match archival is complete,
-	// ensuring ratings are never updated before the match record is written.
-	var archiveWg sync.WaitGroup
-	archiveWg.Add(1)
-
 	hub.gameEnded = true
-	app.liveMatches.EnQueueMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo, hub.taskQueueWaitGroup, &archiveWg)
+	app.liveMatches.EnQueueMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo)
 
 	whiteID := hub.players[WhitePlayer].id
 	blackID := hub.players[BlackPlayer].id
 	models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
 		return app.userRatings.UpdateRatingFromPlayerID(whiteID, ratingType, whiteNewElo)
-	}, &archiveWg, nil)
+	})
 	models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
 		return app.userRatings.UpdateRatingFromPlayerID(blackID, ratingType, blackNewElo)
-	}, &archiveWg, nil)
+	})
 	return nil
 }
 
