@@ -97,9 +97,9 @@ function getTimeFormatName(timeFormatInMilliseconds: number) {
 export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: number }) {
   const playerInfoTile = useContext<PlayerInfoTileContextInterface>(PlayerInfoTileContext)
   let outcome = ""
-  if (matchData.result == 0) {
+  if (matchData.result == 1) {
     outcome = "White wins"
-  } else if (matchData.result == 1) {
+  } else if (matchData.result == 2) {
     outcome = "Black wins"
   } else {
     outcome = "Draw"
