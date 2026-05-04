@@ -570,11 +570,23 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 	blackNewElo := int64(math.Max(float64(hub.players[BlackPlayer].elo)+math.Round(blackEloGain), 0))
 
 	ratingType := models.GetRatingTypeFromTimeFormat(hub.timeFormatInMilliseconds)
-	go app.userRatings.UpdateRatingFromPlayerID(hub.players[WhitePlayer].id, ratingType, whiteNewElo)
-	go app.userRatings.UpdateRatingFromPlayerID(hub.players[BlackPlayer].id, ratingType, blackNewElo)
+
+	// archiveWg blocks the rating updates until the match archival is complete,
+	// ensuring ratings are never updated before the match record is written.
+	var archiveWg sync.WaitGroup
+	archiveWg.Add(1)
 
 	hub.gameEnded = true
-	app.liveMatches.EnQueueMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo, hub.taskQueueWaitGroup, nil)
+	app.liveMatches.EnQueueMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo, hub.taskQueueWaitGroup, &archiveWg)
+
+	whiteID := hub.players[WhitePlayer].id
+	blackID := hub.players[BlackPlayer].id
+	models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
+		return app.userRatings.UpdateRatingFromPlayerID(whiteID, ratingType, whiteNewElo)
+	}, &archiveWg, nil)
+	models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
+		return app.userRatings.UpdateRatingFromPlayerID(blackID, ratingType, blackNewElo)
+	}, &archiveWg, nil)
 	return nil
 }
 
