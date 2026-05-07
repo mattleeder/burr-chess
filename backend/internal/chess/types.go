@@ -39,9 +39,9 @@ const (
 	Draw
 	WhiteResigned
 	BlackResigned
-	Abort
 	WhiteDisconnected
 	BlackDisconnected
+	GameAborted
 )
 
 var (

@@ -490,6 +490,9 @@ func (hub *MatchRoomHub) oneSidedEvent(sender messageIdentifier, event eventType
 	senderIdx := byte(sender)
 
 	switch event {
+	case abort:
+		hub.endGame(chess.GameAborted)
+		hub.sendMessageToAllClients(hub.currentGameState)
 	case extraTime:
 		return
 	case resign:
