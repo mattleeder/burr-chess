@@ -73,8 +73,8 @@ type MatchRoomHub struct {
 	offerActive           *offerInfo
 	gameEnded             bool
 	isThreefoldRepetition bool
-	averageElo     float64
-	matchStartTime int64
+	averageElo            float64
+	matchStartTime        int64
 }
 
 func newMatchRoomHub(matchID int64) (*MatchRoomHub, error) {
@@ -567,7 +567,10 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 	ratingType := models.GetRatingTypeFromTimeFormat(hub.timeFormatInMilliseconds)
 
 	hub.gameEnded = true
-	app.liveMatches.EnQueueMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo)
+
+	if err := app.liveMatches.EnQueueReturnMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo); err != nil {
+		app.errorLog.Printf("Failed to persist match %d to past matches: %v\n", hub.matchID, err)
+	}
 
 	whiteID := hub.players[WhitePlayer].id
 	blackID := hub.players[BlackPlayer].id
