@@ -422,6 +422,7 @@ export function ChessBoard({ resizeable, defaultWidth, chessboardContainerStyles
               index={idx}
               onDragEndCallback={(startIdx, endIdx) => {
                 if (startIdx !== endIdx) {
+                  handleClick(startIdx)
                   handleClick(endIdx)
                 }
               }}
