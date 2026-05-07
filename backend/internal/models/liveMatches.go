@@ -457,7 +457,7 @@ func (m *LiveMatchModel) GetHighestEloMatch() (matchID int64, err error) {
 
 	err = QueryRowWithRetry(m.DB, sqlStmt, []any{}, []any{&matchIDorNull})
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			app.errorLog.Println("No matches currently being played")
 		} else {
 			app.errorLog.Printf("Error getting matchID: %s", err.Error())
