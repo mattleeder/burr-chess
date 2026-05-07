@@ -375,41 +375,36 @@ func (m *UserModel) SearchForUsers(searchString string) ([]UserClientSide, error
 
 func (m *UserModel) GetTileInfoFromUsername(username string) (*UserTileInfo, error) {
 	sqlStmt := `
-	SELECT users.player_id, join_date, last_seen, bullet_rating, blitz_rating, rapid_rating, classical_rating
+	SELECT users.player_id,
+	       users.join_date,
+	       users.last_seen,
+	       user_ratings.bullet_rating,
+	       user_ratings.blitz_rating,
+	       user_ratings.rapid_rating,
+	       user_ratings.classical_rating,
+	       COUNT(past_matches.match_id) as number_of_games
 	  FROM users
 	 INNER JOIN user_ratings
 	    ON users.player_id = user_ratings.player_id
+	  LEFT JOIN past_matches
+	    ON past_matches.white_player_id = users.player_id
+	    OR past_matches.black_player_id = users.player_id
 	 WHERE users.username = ?
+	 GROUP BY users.player_id
 	`
 
 	var playerID int64
 	var joinDate int64
 	var lastSeen int64
-	var bullet_rating int64
-	var blitz_rating int64
-	var rapid_rating int64
-	var classical_rating int64
-
-	err := QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&playerID, &joinDate, &lastSeen, &bullet_rating, &blitz_rating, &rapid_rating, &classical_rating})
-	if err != nil {
-		app.errorLog.Printf("Error in GetTileInfoFromPlayerID: %s\n", err.Error())
-		return nil, err
-	}
-
-	sqlStmt = `
-	SELECT Count(past_matches.match_id) as number_of_games
-	  FROM users
-	 INNER JOIN past_matches
-	    ON past_matches.white_player_id = users.player_id
-		OR past_matches.black_player_id = users.player_id
-	 WHERE users.username = ?
-	`
-
+	var bulletRating int64
+	var blitzRating int64
+	var rapidRating int64
+	var classicalRating int64
 	var numberOfGames int64
 
-	err = QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&numberOfGames})
+	err := QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&playerID, &joinDate, &lastSeen, &bulletRating, &blitzRating, &rapidRating, &classicalRating, &numberOfGames})
 	if err != nil {
-		app.errorLog.Printf("Error in GetTileInfoFromPlayerID gameCount: %s\n", err.Error())
+		app.errorLog.Printf("Error in GetTileInfoFromUsername: %s\n", err.Error())
 		return nil, err
 	}
 
@@ -422,14 +417,13 @@ func (m *UserModel) GetTileInfoFromUsername(username string) (*UserTileInfo, err
 		JoinDate:   joinDate,
 		LastSeen:   lastSeen,
 		Ratings: Ratings{
-			BulletRating:    bullet_rating,
-			BlitzRating:     blitz_rating,
-			RapidRating:     rapid_rating,
-			ClassicalRating: classical_rating,
+			BulletRating:    bulletRating,
+			BlitzRating:     blitzRating,
+			RapidRating:     rapidRating,
+			ClassicalRating: classicalRating,
 		},
 		NumberOfGames: numberOfGames,
 	}, nil
-
 }
 
 func (m *UserModel) GetUserAccountSettings(playerID int64) (AccountSettings, error) {

@@ -7,6 +7,12 @@ services:
       - DSN=file:/app/data/chess_site.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
     volumes:
       - ./data:/app/data  # persist SQLite db
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   frontend:
     build:
@@ -20,4 +26,5 @@ services:
       - ./backend/cmd/web/localhost.crt:/etc/nginx/certs/localhost.crt
       - ./backend/cmd/web/localhost.key:/etc/nginx/certs/localhost.key
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy

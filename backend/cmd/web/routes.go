@@ -57,6 +57,7 @@ func (app *application) routes() http.Handler {
 
 	mux := http.NewServeMux()
 
+	mux.Handle("GET /health", requireLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })))
 	mux.Handle("/", withLogSessionSecureCorsChain(rootHandler))
 	mux.Handle("POST /getMoves", withLogSessionSecureCorsChain(getChessMovesHandler))
 	mux.Handle("POST /joinQueue", withLogSessionSecureCorsChain(joinQueueHandler))
