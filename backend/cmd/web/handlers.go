@@ -274,11 +274,13 @@ func registerUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	csrfToken := generateCSRFToken()
+	app.sessionManager.Put(r.Context(), "csrfToken", csrfToken)
 	app.sessionManager.RememberMe(r.Context(), newUser.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", newUser.Username)
 	app.sessionManager.Put(r.Context(), "playerID", playerID)
 	w.WriteHeader(http.StatusCreated)
-	app.writeJSON(w, authData{Username: newUser.Username})
+	app.writeJSON(w, authData{Username: newUser.Username, CsrfToken: csrfToken})
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -310,10 +312,12 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	csrfToken := generateCSRFToken()
+	app.sessionManager.Put(r.Context(), "csrfToken", csrfToken)
 	app.sessionManager.RememberMe(r.Context(), loginInfo.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", loginInfo.Username)
 	app.sessionManager.Put(r.Context(), "playerID", playerID)
-	app.writeJSON(w, authData{Username: loginInfo.Username})
+	app.writeJSON(w, authData{Username: loginInfo.Username, CsrfToken: csrfToken})
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {

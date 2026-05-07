@@ -42,6 +42,7 @@ func QueryWithRetry(DB *sql.DB, query string, args ...any) (*sql.Rows, error) {
 		rows, err = DB.Query(query, args...)
 		if err == nil {
 			return rows, nil
+			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
 		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)
@@ -65,6 +66,7 @@ func QueryRowWithRetry(DB *sql.DB, query string, queryArgs []any, scanArgs []any
 			return nil
 		} else if errors.Is(err, sql.ErrNoRows) {
 			return err
+			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
 		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)
