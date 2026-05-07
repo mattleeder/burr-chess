@@ -63,7 +63,7 @@ interface FetchMatchesResult {
 
 async function fetchMatches(searchParams: URLSearchParams, signal: AbortSignal): Promise<FetchMatchesResult> {
   const timeFormat = searchParams.get("timeFormat") || ""
-  const url = API.getPastMatches + `?timeFormat=${timeFormat}`
+  const url = API.getPastMatches + `?timeFormat=${encodeURIComponent(timeFormat)}`
 
   try {
     const response = await fetch(url, { signal, method: "GET" })
