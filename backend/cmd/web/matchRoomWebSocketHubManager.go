@@ -36,21 +36,31 @@ func (hubManager *MatchRoomHubManager) unregisterHub(matchID int64) {
 }
 
 func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64) (*MatchRoomHub, error) {
+	// Fast path
 	hubManager.mu.Lock()
-	defer hubManager.mu.Unlock()
 	val, ok := hubManager.hubs[matchID]
-
-	if !ok {
-		var err error
-		val, err = hubManager.registerNewHub(matchID)
-		if err != nil {
-			app.errorLog.Println(err)
-			return nil, err
-		}
-		go val.run()
+	hubManager.mu.Unlock()
+	if ok {
+		return val, nil
 	}
 
-	return val, nil
+	// Slow path: create hub outside the lock
+	newHub, err := newMatchRoomHub(matchID) // DB call happens here, no lock held
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-lock and insert only if another goroutine hasn't beaten us to it
+	hubManager.mu.Lock()
+	if existing, ok := hubManager.hubs[matchID]; ok {
+		hubManager.mu.Unlock()
+		return existing, nil // use the one that got there first
+	}
+	hubManager.hubs[matchID] = newHub
+	hubManager.mu.Unlock()
+
+	go newHub.run()
+	return newHub, nil
 }
 
 func (hubManager *MatchRoomHubManager) registerClientToMatchRoomHub(conn *websocket.Conn, matchID int64, playerID *int64) (*MatchRoomHubClient, error) {
