@@ -3,12 +3,15 @@ package models
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
 const (
-	queryRetryDelay = 50 * time.Millisecond
-	maxQueryRetries = 5
+	queryRetryDelay       = 50 * time.Millisecond
+	maxQueryRetries       = 5
+	SqliteBusyErrSubstr   = "SQLITE_BUSY"
+	SqliteUniqueErrSubstr = "UNIQUE"
 )
 
 func ExecStatementWithRetry(stmt *sql.Stmt, args ...any) (sql.Result, error) {
@@ -21,7 +24,7 @@ func ExecStatementWithRetry(stmt *sql.Stmt, args ...any) (sql.Result, error) {
 		if err == nil {
 			return result, nil
 			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
-		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
+		} else if strings.Contains(err.Error(), SqliteBusyErrSubstr) {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)
 			continue
@@ -43,7 +46,7 @@ func QueryWithRetry(DB *sql.DB, query string, args ...any) (*sql.Rows, error) {
 		if err == nil {
 			return rows, nil
 			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
-		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
+		} else if strings.Contains(err.Error(), SqliteBusyErrSubstr) {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)
 			continue
@@ -67,7 +70,7 @@ func QueryRowWithRetry(DB *sql.DB, query string, queryArgs []any, scanArgs []any
 		} else if errors.Is(err, sql.ErrNoRows) {
 			return err
 			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
-		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
+		} else if strings.Contains(err.Error(), SqliteBusyErrSubstr) {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)
 			continue

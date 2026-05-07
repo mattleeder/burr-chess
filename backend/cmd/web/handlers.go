@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -254,7 +255,7 @@ func registerUserHandler(w http.ResponseWriter, r *http.Request) {
 	playerID, err := app.users.InsertNew(newUser.Username, newUser.Password, &newUserOptions)
 	if err != nil {
 		app.errorLog.Printf("DB Error: %s\n", err.Error())
-		if err.Error() == "constraint failed: UNIQUE constraint failed: users.username (2067)" {
+		if strings.Contains(err.Error(), models.SqliteUniqueErrSubstr) {
 			registerUserValidationErrors.Username = "Username already exists."
 		}
 		jsonStr, jsonErr := json.Marshal(registerUserValidationErrors)
