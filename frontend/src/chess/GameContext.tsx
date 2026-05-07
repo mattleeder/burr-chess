@@ -342,6 +342,8 @@ function createInitialState(timeFormatInMilliseconds: number): GameState {
 
 export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { children: ReactNode, matchID: string, timeFormatInMilliseconds: number }) {
   const [state, dispatch] = useReducer(gameReducer, timeFormatInMilliseconds, createInitialState)
+  const stateRef = useRef(state)
+  stateRef.current = state
   const [flip, setFlip] = useState(false)
   const { webSocket, wsConnectionFailed } = useGameWebSocket(matchID, dispatch)
 
@@ -351,27 +353,27 @@ export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { c
 
   const setMatchData = useCallback<Dispatch<React.SetStateAction<matchData>>>((action) => {
     if (typeof action === "function") {
-      dispatch({ type: "SET_MATCH_DATA", matchData: action(state.matchData) })
+      dispatch({ type: "SET_MATCH_DATA", matchData: action(stateRef.current.matchData) })
     } else {
       dispatch({ type: "SET_MATCH_DATA", matchData: action })
     }
-  }, [state.matchData])
+  }, [])
 
   const setOpponentEventType = useCallback<Dispatch<React.SetStateAction<OpponentEventType>>>((action) => {
     if (typeof action === "function") {
-      dispatch({ type: "SET_OPPONENT_EVENT_TYPE", eventType: action(state.opponentEventType) })
+      dispatch({ type: "SET_OPPONENT_EVENT_TYPE", eventType: action(stateRef.current.opponentEventType) })
     } else {
       dispatch({ type: "SET_OPPONENT_EVENT_TYPE", eventType: action })
     }
-  }, [state.opponentEventType])
+  }, [])
 
   const setThreefoldRepetition = useCallback<Dispatch<React.SetStateAction<boolean>>>((action) => {
     if (typeof action === "function") {
-      dispatch({ type: "SET_THREEFOLD_REPETITION", value: action(state.threefoldRepetition) })
+      dispatch({ type: "SET_THREEFOLD_REPETITION", value: action(stateRef.current.threefoldRepetition) })
     } else {
       dispatch({ type: "SET_THREEFOLD_REPETITION", value: action })
     }
-  }, [state.threefoldRepetition])
+  }, [])
 
   return (
     <GameContext.Provider value={{
