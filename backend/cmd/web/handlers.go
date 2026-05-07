@@ -145,7 +145,11 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Access-Control-Max-Age", "10")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	cookie, _ := r.Cookie("session")
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		http.Error(w, "Missing session cookie", http.StatusUnauthorized)
+		return
+	}
 	app.infoLog.Printf("SessionID from cookie: %s\n", cookie.Value)
 
 	ctx, err := app.sessionManager.Load(r.Context(), cookie.Value)
