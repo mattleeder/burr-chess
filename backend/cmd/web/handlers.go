@@ -169,7 +169,7 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	clients.mu.Lock()
 	_, ok := clients.clients[playerID]
 	if !ok {
-		clients.clients[playerID] = &Client{id: playerID, channel: make(chan string)}
+		clients.clients[playerID] = &Client{id: playerID, channel: make(chan string, 1)}
 	}
 	clientChannel := clients.clients[playerID].channel
 	clients.mu.Unlock()
