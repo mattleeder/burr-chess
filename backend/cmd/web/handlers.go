@@ -3,6 +3,7 @@ package main
 import (
 	"burrchess/internal/chess"
 	"burrchess/internal/models"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -230,8 +231,8 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 func getHighestEloMatchHandler(w http.ResponseWriter, r *http.Request) {
 	matchID, err := app.liveMatches.GetHighestEloMatch()
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		if errors.Is(err, sql.ErrNoRows) {
+			w.WriteHeader(http.StatusNoContent)
 		} else {
 			app.serverError(w, err, true)
 		}

@@ -492,6 +492,7 @@ func (m *LiveMatchModel) IsPlayerInMatch(playerID int64) (bool, error) {
 			return false, nil
 		} else {
 			app.errorLog.Printf("Error getting matchID: %s", err.Error())
+			return false, err
 		}
 	}
 
