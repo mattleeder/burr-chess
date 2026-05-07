@@ -58,6 +58,7 @@ export interface gameContext {
   setThreefoldRepetition: Dispatch<React.SetStateAction<boolean>>,
   flip: boolean,
   setFlip: Dispatch<React.SetStateAction<boolean>>,
+  wsConnectionFailed: boolean,
 }
 
 export const GameContext = createContext<gameContext | null>(null)
@@ -265,17 +266,23 @@ function dispatchWebSocketMessage(data: unknown, dispatch: Dispatch<GameAction>)
 
 function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
   const webSocket = useRef<WebSocket | null>(null)
+  const [wsConnectionFailed, setWsConnectionFailed] = useState(false)
 
   useEffect(() => {
     let attempts = 0
     let cancelled = false
 
     const connect = () => {
+      setWsConnectionFailed(false)
       webSocket.current = new WebSocket(API.matchRoom.replace("https://", "wss://") + "/" + matchID + "/ws")
       webSocket.current.onmessage = (event) => dispatchWebSocketMessage(event.data, dispatch)
       webSocket.current.onerror = (event) => console.error(event)
       webSocket.current.onclose = () => {
-        if (cancelled || attempts >= 5) return
+        if (cancelled) return
+        if (attempts >= 5) {
+          setWsConnectionFailed(true)
+          return
+        }
         attempts++
         const delay = Math.min(1000 * 2 ** attempts, 30000) // Never more than 30s
         console.log(`WebSocket closed, reconnecting in ${delay}ms (attempt ${attempts})`)
@@ -293,7 +300,7 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
     }
   }, [matchID, dispatch])
 
-  return webSocket
+  return { webSocket, wsConnectionFailed }
 }
 
 
@@ -336,7 +343,7 @@ function createInitialState(timeFormatInMilliseconds: number): GameState {
 export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { children: ReactNode, matchID: string, timeFormatInMilliseconds: number }) {
   const [state, dispatch] = useReducer(gameReducer, timeFormatInMilliseconds, createInitialState)
   const [flip, setFlip] = useState(false)
-  const webSocket = useGameWebSocket(matchID, dispatch)
+  const { webSocket, wsConnectionFailed } = useGameWebSocket(matchID, dispatch)
 
   useEffect(() => {
     setFlip(state.playerColour === PieceColour.Black)
@@ -383,6 +390,7 @@ export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { c
       setThreefoldRepetition,
       flip,
       setFlip,
+      wsConnectionFailed,
     }}>
       {children}
     </GameContext.Provider>
