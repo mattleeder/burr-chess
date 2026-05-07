@@ -148,9 +148,9 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 	// Change Turn
 	if newGameState.turn == White {
 		newGameState.turn = Black
-		newGameState.fullMoveNumber += 1
 	} else {
 		newGameState.turn = White
+		newGameState.fullMoveNumber += 1
 	}
 
 	return newGameState, notationSuffix
