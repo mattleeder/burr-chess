@@ -20,6 +20,7 @@ func ExecStatementWithRetry(stmt *sql.Stmt, args ...any) (sql.Result, error) {
 		result, err = stmt.Exec(args...)
 		if err == nil {
 			return result, nil
+			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
 		} else if err.Error() == "database is locked (5) (SQLITE_BUSY)" {
 			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
 			time.Sleep(queryRetryDelay)

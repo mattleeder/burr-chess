@@ -488,7 +488,7 @@ func (m *LiveMatchModel) IsPlayerInMatch(playerID int64) (bool, error) {
 
 	err := QueryRowWithRetry(m.DB, sqlStmt, []any{playerID, playerID}, []any{&matchIDorNull})
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		} else {
 			app.errorLog.Printf("Error getting matchID: %s", err.Error())
