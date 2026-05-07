@@ -261,18 +261,25 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
   const webSocket = useRef<WebSocket | null>(null)
 
   useEffect(() => {
+    let attempts = 0
+    let cancelled = false
+
     const connect = () => {
       webSocket.current = new WebSocket(API.matchRoom.replace("https://", "wss://") + "/" + matchID + "/ws")
       webSocket.current.onmessage = (event) => dispatchWebSocketMessage(event.data, dispatch)
       webSocket.current.onerror = (event) => console.error(event)
       webSocket.current.onclose = () => {
-        console.log("WebSocket closed, attempting reconnect")
-        connect()
+        if (cancelled || attempts >= 5) return
+        attempts++
+        const delay = Math.min(1000 * 2 ** attempts, 30000) // Never more than 30s
+        console.log(`WebSocket closed, reconnecting in ${delay}ms (attempt ${attempts})`)
+        setTimeout(connect, delay)
       }
     }
     connect()
 
     return () => {
+      cancelled = true
       if (webSocket.current) {
         webSocket.current.onclose = null
         webSocket.current.close()
@@ -282,6 +289,7 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
 
   return webSocket
 }
+
 
 // ── GameWrapper component ──
 
