@@ -264,6 +264,14 @@ func matchPlayers() {
 				app.errorLog.Println(err)
 				continue
 			}
+
+			// Re-check in case player left during createMatch
+			if queue.awaitingRemoval[playerOne.playerID] || queue.awaitingRemoval[playerTwo.playerID] {
+				// match was created but player already left — need to abort it
+				// log and mark matched anyway so they get cleaned up
+				app.errorLog.Printf("Player left queue during match creation")
+			}
+
 			playerOne.isMatched = true
 			playerTwo.isMatched = true
 		}

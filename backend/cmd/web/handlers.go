@@ -343,6 +343,7 @@ func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
 			app.sessionManager.Put(r.Context(), "playerID", generateNewPlayerId())
 		}
 		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 
 	app.writeJSON(w, authData{
