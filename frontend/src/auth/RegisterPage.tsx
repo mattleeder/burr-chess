@@ -59,7 +59,7 @@ function RegisterForm() {
       </div>
       <button className={`signInButton${loading ? " disabled" : ""}`}>REGISTER</button>
       <label>
-        <input type="checkbox" style={{marginLeft: "0"}} checked={remember} onChange={() => setRemember(!remember)}/>
+        <input type="checkbox" name="rememberMe" value="true" style={{marginLeft: "0"}} checked={remember} onChange={() => setRemember(!remember)}/>
         Keep me logged in
       </label>
       <input className="hidden" name="referrer" type="text" required={false} value={searchParams.get("referrer") || ""}/>
