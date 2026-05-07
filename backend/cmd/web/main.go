@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -32,6 +33,7 @@ type application struct {
 	dbTaskQueue    *models.TaskQueue
 	sessionManager *scs.SessionManager
 	corsOrigin     string
+	rateLimiters   sync.Map
 }
 
 var app *application

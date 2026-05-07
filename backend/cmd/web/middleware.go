@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 func secureHeaders(next http.Handler) http.Handler {
@@ -142,6 +145,18 @@ func requireLocalhost(next http.Handler) http.Handler {
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 		if host != "127.0.0.1" && host != "::1" {
 			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) rateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		val, _ := app.rateLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Every(time.Second), 10))
+		if !val.(*rate.Limiter).Allow() {
+			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
 		}
 		next.ServeHTTP(w, r)
