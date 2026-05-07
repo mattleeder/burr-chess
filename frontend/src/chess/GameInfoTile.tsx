@@ -161,7 +161,7 @@ function formatDuration(durationInMilliseconds: number): string {
     
   let result = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0")
   if (durationInMilliseconds < 10_000) {
-    result += "." + milliseconds.toPrecision(1)[0]
+    result += "." + Math.floor(milliseconds / 100)
   }
   return result;
 }
