@@ -154,7 +154,7 @@ func requireLocalhost(next http.Handler) http.Handler {
 func (app *application) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		val, _ := app.rateLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Every(time.Second), 10))
+		val, _ := app.rateLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Every(time.Second), 10)) // 10 per second
 		if !val.(*rate.Limiter).Allow() {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
