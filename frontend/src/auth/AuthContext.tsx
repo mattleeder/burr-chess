@@ -75,8 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (result.ok && result.data) {
+      const auth = result.data as unknown as AuthData
       setIsLoggedIn(true)
-      setAuthData(result.data as unknown as AuthData)
+      setAuthData(auth)
+      setCsrfToken(auth.csrfToken)
     }
 
     return result
@@ -94,8 +96,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (result.ok && result.data) {
+      const auth = result.data as unknown as AuthData
       setIsLoggedIn(true)
-      setAuthData(result.data as unknown as AuthData)
+      setAuthData(auth)
+      setCsrfToken(auth.csrfToken)
     }
 
     return result
