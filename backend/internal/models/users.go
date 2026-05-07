@@ -334,6 +334,7 @@ func (m *UserModel) SearchForUsers(searchString string) ([]UserClientSide, error
 	SELECT player_id, username, join_date, last_seen
 	  FROM users
 	 WHERE UPPER(username) GLOB ?
+	 LIMIT 20
 	`
 
 	var output []UserClientSide
