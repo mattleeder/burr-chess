@@ -55,6 +55,7 @@ func main() {
 
 	addrFlag := flag.String("addr", addr, "HTTPS network address")
 	dbDataSourceName := flag.String("dsn", dsn, "Database Data Source Name")
+	resetDB := flag.Bool("reset-db", false, "Drop and recreate all database tables (destroys all data)")
 
 	flag.Parse()
 
@@ -63,7 +64,7 @@ func main() {
 	perfLog := log.New(os.Stdout, "PERF\t", log.Lshortfile)
 	debugLog := log.New(os.Stdout, "DEBUG\t", log.Lshortfile)
 
-	models.InitDatabase(*dbDriverName, *dbDataSourceName)
+	models.InitDatabase(*dbDriverName, *dbDataSourceName, *resetDB)
 	db, err := sql.Open(*dbDriverName, *dbDataSourceName)
 	if err != nil {
 		errorLog.Fatal(err)

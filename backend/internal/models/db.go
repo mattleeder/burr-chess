@@ -125,14 +125,31 @@ func init() {
 	app.infoLog.Println("EXITING MODELS INIT")
 }
 
-func InitDatabase(driverName string, dataSourceName string) {
-	os.Remove("./chess_site.db")
+func InitDatabase(driverName string, dataSourceName string, reset bool) {
+	if reset {
+		app.infoLog.Println("--reset-db flag set: dropping and recreating database")
+		os.Remove("./chess_site.db")
+	}
 
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		app.errorLog.Fatal(err)
 	}
 	defer db.Close()
+
+	if reset {
+		dropStmt := `
+			DROP TABLE IF EXISTS sessions;
+			DROP TABLE IF EXISTS live_matches;
+			DROP TABLE IF EXISTS past_matches;
+			DROP TABLE IF EXISTS users;
+			DROP TABLE IF EXISTS user_ratings;
+		`
+		_, err = db.Exec(dropStmt)
+		if err != nil {
+			app.errorLog.Fatalf("reset: drop tables: %q\n", err)
+		}
+	}
 
 	schemaPath := filepath.Join("internal", "models", "schema.sql")
 	c, ioErr := os.ReadFile(schemaPath)
