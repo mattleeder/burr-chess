@@ -1,7 +1,7 @@
 import React, { useContext, useRef, useEffect, useState } from "react";
 import { CornerUpLeft, Handshake, Flag, Microscope, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, AlignJustify } from "lucide-react";
 import { PieceColour, PieceVariant, parseGameStateFromFEN } from "./ChessLogic";
-import { GameContext, OpponentEventType, gameContext, boardHistory, SQLNullString } from "./GameContext";
+import { GameContext, OpponentEventType, gameContext, boardHistory } from "./GameContext";
 import { variantToString } from "./ChessBoard";
 import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from "../PlayerInfoTile";
 import "./GameInfoTile.css";
@@ -100,7 +100,7 @@ export function PingStatus({ connected, style }: { connected: boolean, style?: R
   )
 }
 
-function PlayerInfo({ connected, username }: { connected: boolean, username: SQLNullString }) {
+function PlayerInfo({ connected, username }: { connected: boolean, username: string | null }) {
   const playerInfoTile = useContext<PlayerInfoTileContextInterface>(PlayerInfoTileContext)
 
   // useEffect(() => {
@@ -114,12 +114,12 @@ function PlayerInfo({ connected, username }: { connected: boolean, username: SQL
       </div>
       <div className='playerName'
         onMouseEnter={(event) => {
-          if (username.Valid) {
-            playerInfoTile?.spawnPlayerInfoTile(username.String, event)
+          if (username != null) {
+            playerInfoTile?.spawnPlayerInfoTile(username, event)
           }
         }}
-        onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(username.String, event)}
-      >{username.Valid ? username.String : "Anon"}</div>
+        onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(username ?? "", event)}
+      >{username ?? "Anon"}</div>
     </div>
   )
 }

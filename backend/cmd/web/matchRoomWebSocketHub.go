@@ -366,8 +366,8 @@ func (hub *MatchRoomHub) getCurrentMatchStateForNewConnection(playerIdentifier m
 			WhitePlayerConnected:     hub.players[WhitePlayer].connected,
 			BlackPlayerConnected:     hub.players[BlackPlayer].connected,
 			MillisecondsUntilTimeout: millisecondsUntilTimeout,
-			WhitePlayerUsername:      hub.players[WhitePlayer].username,
-			BlackPlayerUsername:      hub.players[BlackPlayer].username,
+			WhitePlayerUsername:      nullStringPtr(hub.players[WhitePlayer].username),
+			BlackPlayerUsername:      nullStringPtr(hub.players[BlackPlayer].username),
 		},
 	}
 

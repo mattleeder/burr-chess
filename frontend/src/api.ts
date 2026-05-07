@@ -2,7 +2,6 @@ const BASE_URL = import.meta.env.VITE_API_URL as string
 
 export const API = {
   fetchMoves:         `${BASE_URL}/getMoves`,
-  makeMove:           `${BASE_URL}/makeMove`,
   joinQueue:          `${BASE_URL}/joinQueue`,
   listenForMatch:     `${BASE_URL}/listenformatch`,
   matchRoom:          `${BASE_URL}/matchroom`,

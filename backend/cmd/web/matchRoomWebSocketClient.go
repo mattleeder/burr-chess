@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -36,9 +37,10 @@ func (app *application) newUpgrader() websocket.Upgrader {
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			origin := r.Header.Get("Origin")
-			app.infoLog.Printf("WS CheckOrigin: got=%q want=%q", origin, app.corsOrigin)
-			return origin == app.corsOrigin
+			origin := strings.TrimRight(r.Header.Get("Origin"), "/")
+			want := strings.TrimRight(app.corsOrigin, "/")
+			app.infoLog.Printf("WS CheckOrigin: got=%q want=%q", origin, want)
+			return origin == want
 		},
 	}
 }

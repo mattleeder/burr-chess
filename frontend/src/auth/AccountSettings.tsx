@@ -2,13 +2,12 @@ import React, { useEffect, useState } from "react"
 import { LoaderCircle } from "lucide-react"
 import { FormError } from "../ui/forms/FormError"
 import { submitFormData } from "../ui/forms/FormUtilities"
-import { SQLNullString } from "../chess/GameContext"
 import { API } from "../api"
 import "./AccountPage.css"
 import { SideBar } from "../ui/SideBar"
 
 interface AccountSettings {
-  email: SQLNullString
+  email: string | null
 }
 
 interface EmailValidationErrors {
@@ -86,7 +85,7 @@ function PasswordChange() {
 
 function EmailChange({ accountSettings, setAccountSettings }: { accountSettings: AccountSettings, setAccountSettings: React.Dispatch<React.SetStateAction<AccountSettings | null>> }) {
   const [loading, setLoading] = useState(false)
-  const [currentEmail] = useState(accountSettings.email.Valid ? accountSettings.email.String : "")
+  const [currentEmail] = useState(accountSettings.email ?? "")
   const [newEmail, setNewEmail] = useState("")
   const [validationErrors, setValidationErrors] = useState<EmailValidationErrors>({
     email: "",
@@ -108,10 +107,7 @@ function EmailChange({ accountSettings, setAccountSettings }: { accountSettings:
         if (current === null) return null
         return {
           ...current,
-          email: {
-            Valid: true,
-            String: formData.get("email")?.toString() || "",
-          },
+          email: formData.get("email")?.toString() || null,
         }
       })
     } else if (result.data) {

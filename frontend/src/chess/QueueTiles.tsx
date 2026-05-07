@@ -81,10 +81,6 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
   })
 
   eventSource.current.onmessage = (event) => {
-    if (event.data == "heartbeat") {
-      return
-    }
-
     const splitData = event.data.split(",")
     const matchRoom = splitData[0]
     const timeFormatInMilliseconds = splitData[1]

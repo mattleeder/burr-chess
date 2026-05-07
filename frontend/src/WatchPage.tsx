@@ -4,7 +4,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { FrozenChessBoard } from "./chess/ChessBoard";
 import { parseGameStateFromFEN } from "./chess/ChessLogic";
 import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from "./PlayerInfoTile";
-import { SQLNullString, SQLNullInt64 } from "./types";
 import { API } from "./api";
 import "./WatchPage.css";
 
@@ -26,10 +25,10 @@ const resultReasons = [
 
 export interface pastMatchData {
   matchID: number
-  whitePlayerUsername: SQLNullString
-  blackPlayerUsername: SQLNullString
-  lastMovePiece: SQLNullInt64
-  lastMoveMove: SQLNullInt64
+  whitePlayerUsername: string | null
+  blackPlayerUsername: string | null
+  lastMovePiece: number | null
+  lastMoveMove: number | null
   finalFEN: string
   timeFormatInMilliseconds: number
   incrementInMilliseconds: number
@@ -121,7 +120,7 @@ export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: n
       <Link to={`/matchroom/${matchData.matchID}`} style={{display: "block", position: "absolute", width: "100%", height: "100%", boxSizing: "content-box", zIndex: "3"}}/>
       <div style={{marginTop: "auto", marginBottom: "auto", boxShadow: "2px 2px 2px #000000", height: "inherit", width: "35vh"}}>
         {/* Chessboard, display final position */}
-        <FrozenChessBoard board={gameState.board} lastMove={[matchData.lastMovePiece.Int64, matchData.lastMoveMove.Int64]} showLastMove={matchData.lastMovePiece.Valid && matchData.lastMoveMove.Valid}/>
+        <FrozenChessBoard board={gameState.board} lastMove={[matchData.lastMovePiece ?? 0, matchData.lastMoveMove ?? 0]} showLastMove={matchData.lastMovePiece != null && matchData.lastMoveMove != null}/>
       </div>
       <div style={{display: "grid", gridTemplateRows: "1fr 1fr", marginLeft: "1em", height: "inherit"}}>
         {/* Info, grid 2 rows, top row is format info and date, 2nd row is player Info and victory */}
@@ -145,14 +144,14 @@ export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: n
             {/* Player info, grid 3 columns, 1st is white info, 2nd is vs icon, 3rd is black info */}
             <div>
               {/* White info*/}
-              {matchData.whitePlayerUsername.Valid ? 
+              {matchData.whitePlayerUsername != null ?
                 <span style={{position:"relative", zIndex: "4"}}
-                  onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(matchData.whitePlayerUsername.String, event)}
-                  onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(matchData.whitePlayerUsername.String, event)}
+                  onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(matchData.whitePlayerUsername!, event)}
+                  onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(matchData.whitePlayerUsername!, event)}
                 >
-                  {`${matchData.whitePlayerUsername.String} (${matchData.whitePlayerElo} ${matchData.whitePlayerEloGain >= 0 ? "+" : ""}${matchData.whitePlayerEloGain})`}
+                  {`${matchData.whitePlayerUsername} (${matchData.whitePlayerElo} ${matchData.whitePlayerEloGain >= 0 ? "+" : ""}${matchData.whitePlayerEloGain})`}
                 </span>
-                : 
+                :
                 <span>Anon</span>}
             </div>
             <div>
@@ -161,14 +160,14 @@ export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: n
             </div>
             <div>
               {/* Black info */}
-              {matchData.blackPlayerUsername.Valid ? 
+              {matchData.blackPlayerUsername != null ?
                 <span style={{position:"relative", zIndex: "4"}}
-                  onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(matchData.blackPlayerUsername.String, event)}
-                  onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(matchData.blackPlayerUsername.String, event)}
+                  onMouseEnter={(event) => playerInfoTile?.spawnPlayerInfoTile(matchData.blackPlayerUsername!, event)}
+                  onMouseLeave={(event) => playerInfoTile?.lightFusePlayerInfoTile(matchData.blackPlayerUsername!, event)}
                 >
-                  {`${matchData.blackPlayerUsername.String} (${matchData.blackPlayerElo} ${matchData.blackPlayerEloGain >= 0 ? "+" : ""}${matchData.blackPlayerEloGain})`}
+                  {`${matchData.blackPlayerUsername} (${matchData.blackPlayerElo} ${matchData.blackPlayerEloGain >= 0 ? "+" : ""}${matchData.blackPlayerEloGain})`}
                 </span>
-                : 
+                :
                 <span>Anon</span>}
             </div>
           </div>

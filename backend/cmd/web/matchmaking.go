@@ -141,7 +141,7 @@ func startingMatchHistory(timeFormatInMilliseconds int64) ([]byte, error) {
 	startingHistory := []MatchStateHistory{{
 		FEN:                                  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 		LastMove:                             [2]int{0, 0},
-		AlgebraicNotation:                    "a8",
+		AlgebraicNotation:                    "",
 		WhitePlayerTimeRemainingMilliseconds: timeFormatInMilliseconds,
 		BlackPlayerTimeRemainingMilliseconds: timeFormatInMilliseconds,
 	}}

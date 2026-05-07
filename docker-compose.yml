@@ -13,11 +13,12 @@ services:
       - ./backend/cmd/web/localhost.key:/app/cmd/web/localhost.key
 
   frontend:
-    build: 
+    build:
       context: ./frontend
       args:
         - VITE_API_URL=${VITE_API_URL}
     ports:
+      - "80:80"
       - "443:443"
     volumes:
       - ./backend/cmd/web/localhost.crt:/etc/nginx/certs/localhost.crt

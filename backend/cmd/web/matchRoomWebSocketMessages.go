@@ -2,7 +2,6 @@ package main
 
 import (
 	"burrchess/internal/chess"
-	"database/sql"
 	"encoding/json"
 )
 
@@ -44,8 +43,8 @@ type onConnectBody struct {
 	WhitePlayerConnected     bool                    `json:"whitePlayerConnected"`
 	BlackPlayerConnected     bool                    `json:"blackPlayerConnected"`
 	MillisecondsUntilTimeout int64                   `json:"millisecondsUntilTimeout"`
-	WhitePlayerUsername      sql.NullString          `json:"whitePlayerUsername"`
-	BlackPlayerUsername      sql.NullString          `json:"blackPlayerUsername"`
+	WhitePlayerUsername      *string                 `json:"whitePlayerUsername"`
+	BlackPlayerUsername      *string                 `json:"blackPlayerUsername"`
 }
 
 type onMoveBody struct {

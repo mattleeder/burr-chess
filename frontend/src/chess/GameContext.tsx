@@ -1,12 +1,9 @@
 import React, { useRef, useReducer, useCallback, useEffect, useState, createContext } from "react"
 import type { ReactNode, Dispatch } from "react"
 import { parseGameStateFromFEN, PieceColour, PieceVariant } from "./ChessLogic"
-import { SQLNullString } from "../types"
 import { API } from "../api"
 
 // ── Shared types ──
-
-export type { SQLNullString }
 
 export interface boardInfo {
   board: [PieceColour | null, PieceVariant | null][],
@@ -52,8 +49,8 @@ export interface gameContext {
   playerColour: PieceColour,
   isWhiteConnected: boolean,
   isBlackConnected: boolean,
-  whitePlayerUsername: SQLNullString,
-  blackPlayerUsername: SQLNullString,
+  whitePlayerUsername: string | null,
+  blackPlayerUsername: string | null,
   opponentEventType: OpponentEventType,
   setOpponentEventType: Dispatch<React.SetStateAction<OpponentEventType>>,
   millisecondsUntilOpponentTimeout: number | null,
@@ -73,8 +70,8 @@ interface OnConnectMessage {
   threefoldRepetition: boolean
   whitePlayerConnected: boolean
   blackPlayerConnected: boolean
-  whitePlayerUsername: SQLNullString
-  blackPlayerUsername: SQLNullString
+  whitePlayerUsername: string | null
+  blackPlayerUsername: string | null
 }
 
 interface OnMoveMessage {
@@ -110,8 +107,8 @@ interface GameState {
   playerColour: PieceColour
   isWhiteConnected: boolean
   isBlackConnected: boolean
-  whitePlayerUsername: SQLNullString
-  blackPlayerUsername: SQLNullString
+  whitePlayerUsername: string | null
+  blackPlayerUsername: string | null
   millisecondsUntilOpponentTimeout: number | null
   opponentEventType: OpponentEventType
   threefoldRepetition: boolean
@@ -314,8 +311,8 @@ function createInitialState(timeFormatInMilliseconds: number): GameState {
     playerColour: PieceColour.Spectator,
     isWhiteConnected: false,
     isBlackConnected: false,
-    whitePlayerUsername: { String: "", Valid: false },
-    blackPlayerUsername: { String: "", Valid: false },
+    whitePlayerUsername: null,
+    blackPlayerUsername: null,
     millisecondsUntilOpponentTimeout: null,
     opponentEventType: OpponentEventType.None,
     threefoldRepetition: false,

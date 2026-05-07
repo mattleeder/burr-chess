@@ -4,8 +4,6 @@ import (
 	"database/sql"
 )
 
-// @TODO: DOES SENDING THINGS AS sql.NullType GIVE AWAY THAT IT IS SQL DATABASE?
-
 type PastMatch struct {
 	MatchID                  int64          `json:"matchID"`
 	WhitePlayerID            int64         `json:"whitePlayerID"`
@@ -28,11 +26,11 @@ type PastMatch struct {
 }
 
 type PastMatchSummary struct {
-	MatchID                  int64          `json:"matchID"`
-	WhitePlayerUsername      sql.NullString `json:"whitePlayerUsername"`
-	BlackPlayerUsername      sql.NullString `json:"blackPlayerUsername"`
-	LastMovePiece            sql.NullInt64  `json:"lastMovePiece"`
-	LastMoveMove             sql.NullInt64  `json:"lastMoveMove"`
+	MatchID                  int64   `json:"matchID"`
+	WhitePlayerUsername      *string `json:"whitePlayerUsername"`
+	BlackPlayerUsername      *string `json:"blackPlayerUsername"`
+	LastMovePiece            *int64  `json:"lastMovePiece"`
+	LastMoveMove             *int64  `json:"lastMoveMove"`
 	FinalFEN                 string         `json:"finalFEN"`
 	TimeFormatInMilliseconds int64          `json:"timeFormatInMilliseconds"`
 	IncrementInMilliseconds  int64          `json:"incrementInMilliseconds"`
@@ -133,12 +131,14 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 	defer rows.Close()
 	for rows.Next() {
 		var m PastMatchSummary
+		var whiteUsername, blackUsername sql.NullString
+		var lastMovePiece, lastMoveMove sql.NullInt64
 		err := rows.Scan(
 			&m.MatchID,
-			&m.WhitePlayerUsername,
-			&m.BlackPlayerUsername,
-			&m.LastMovePiece,
-			&m.LastMoveMove,
+			&whiteUsername,
+			&blackUsername,
+			&lastMovePiece,
+			&lastMoveMove,
 			&m.FinalFEN,
 			&m.TimeFormatInMilliseconds,
 			&m.IncrementInMilliseconds,
@@ -157,6 +157,11 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 			app.errorLog.Printf("Error in GetPastMatchesWithFormat: %s\n", err.Error())
 			return nil, err
 		}
+
+		if whiteUsername.Valid { m.WhitePlayerUsername = &whiteUsername.String }
+		if blackUsername.Valid { m.BlackPlayerUsername = &blackUsername.String }
+		if lastMovePiece.Valid { m.LastMovePiece = &lastMovePiece.Int64 }
+		if lastMoveMove.Valid { m.LastMoveMove = &lastMoveMove.Int64 }
 
 		output = append(output, m)
 	}

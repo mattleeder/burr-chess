@@ -80,7 +80,7 @@ type UserTileInfo struct {
 }
 
 type AccountSettings struct {
-	Email sql.NullString `json:"email"`
+	Email *string `json:"email"`
 }
 
 func hashPassword(password string) (string, error) {
@@ -443,9 +443,11 @@ func (m *UserModel) GetUserAccountSettings(playerID int64) (AccountSettings, err
 		app.errorLog.Printf("Error getting account settings: %v\n", err.Error())
 		return AccountSettings{}, err
 	}
-	return AccountSettings{
-		Email: email,
-	}, nil
+	var result AccountSettings
+	if email.Valid {
+		result.Email = &email.String
+	}
+	return result, nil
 }
 
 func (m *UserModel) UpdateEmail(playerID int64, newEmail string) error {

@@ -11,7 +11,7 @@ export function ProtectedRoute({ element }: { element: React.ReactNode }) {
     if (!auth.isLoading && !auth.isLoggedIn) {
       navigate(`/login?referrer=${location.pathname}`)
     }
-  }, [])
+  }, [auth.isLoading, auth.isLoggedIn, navigate, location.pathname])
 
   if (auth === null || auth === undefined) {
     throw new Error("ProtectedRoute must be used within an AuthContext")
