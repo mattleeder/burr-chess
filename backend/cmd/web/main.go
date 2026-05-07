@@ -33,6 +33,7 @@ type application struct {
 	dbTaskQueue    *models.TaskQueue
 	sessionManager *scs.SessionManager
 	corsOrigin     string
+	backendURL     string
 	rateLimiters   sync.Map
 }
 
@@ -122,6 +123,11 @@ func main() {
 		errorLog.Fatal("CORS_ORIGIN environment variable not set")
 	}
 
+	backendURL := os.Getenv("BACKEND_URL")
+	if backendURL == "" {
+		errorLog.Fatal("BACKEND_URL environment variable not set")
+	}
+
 	app = &application{
 		errorLog:       errorLog,
 		infoLog:        infoLog,
@@ -135,6 +141,7 @@ func main() {
 		dbTaskQueue:    models.DBTaskQueue,
 		sessionManager: sessionManager,
 		corsOrigin:     corsOrigin,
+		backendURL:     backendURL,
 	}
 
 	go func() {
