@@ -1,4 +1,7 @@
-const BASE_URL = import.meta.env.VITE_API_URL as string
+const BASE_URL: string = import.meta.env.VITE_API_URL
+if (!BASE_URL) {
+  throw new Error("VITE_API_URL is not set. Add it to your .env file.")
+}
 
 export function apiFetch(input: RequestInfo, csrfToken: string, init?: RequestInit): Promise<Response> {
   return fetch(input, {

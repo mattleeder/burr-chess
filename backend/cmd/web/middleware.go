@@ -9,6 +9,21 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// cleanupRateLimiters removes idle rate limiters from the sync.Map every 10 minutes
+// to prevent unbounded memory growth as unique IPs accumulate.
+func (app *application) cleanupRateLimiters() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		app.rateLimiters.Range(func(key, val any) bool {
+			if val.(*rate.Limiter).Tokens() >= float64(val.(*rate.Limiter).Burst()) {
+				app.rateLimiters.Delete(key)
+			}
+			return true
+		})
+	}
+}
+
 func secureHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// https://owasp.org/www-project-secure-headers/index.html#configuration-proposal
@@ -154,7 +169,20 @@ func requireLocalhost(next http.Handler) http.Handler {
 func (app *application) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		val, _ := app.rateLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Every(time.Second), 10)) // 10 per second
+		val, _ := app.rateLimiters.LoadOrStore("general:"+ip, rate.NewLimiter(rate.Every(time.Second), 10)) // 10 per second
+		if !val.(*rate.Limiter).Allow() {
+			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// authRateLimit applies a strict per-IP limit suitable for login/register (5 per minute).
+func (app *application) authRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		val, _ := app.rateLimiters.LoadOrStore("auth:"+ip, rate.NewLimiter(rate.Every(12*time.Second), 5)) // 5 per minute
 		if !val.(*rate.Limiter).Allow() {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return

@@ -147,6 +147,7 @@ func main() {
 	}
 
 	go matchmakingService()
+	go app.cleanupRateLimiters()
 
 	app.infoLog.Printf("Starting server on %s", addr)
 	err = srv.ListenAndServe()

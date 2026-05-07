@@ -38,6 +38,21 @@ func withLogSecureCorsChain(handlerFunc http.HandlerFunc) http.Handler {
 								http.HandlerFunc(handlerFunc))))))))
 }
 
+// withLogSessionSecureCorsAuthChain adds a strict auth rate limit on top of the standard chain.
+// Use this for login/register endpoints.
+func withLogSessionSecureCorsAuthChain(handlerFunc http.HandlerFunc) http.Handler {
+	return app.withPerfLog(
+		app.logRequest(
+			app.recoverPanic(
+				app.corsHeaders(
+					app.rateLimit(
+						app.authRateLimit(
+							wrapWithSessionManager(
+								app.sessionManager, app.requireSameOrigin(
+									secureHeaders(
+										http.HandlerFunc(handlerFunc))))))))))
+}
+
 func (app *application) routes() http.Handler {
 
 	mux := http.NewServeMux()
@@ -47,8 +62,8 @@ func (app *application) routes() http.Handler {
 	mux.Handle("POST /joinQueue", withLogSessionSecureCorsChain(joinQueueHandler))
 	mux.Handle("/matchroom/{matchID}/ws", withLogSessionSecureCorsChain(serveMatchroomWs))
 	mux.Handle("GET /getHighestEloMatch", withLogSessionSecureCorsChain(getHighestEloMatchHandler))
-	mux.Handle("POST /register", withLogSessionSecureCorsChain(registerUserHandler))
-	mux.Handle("POST /login", withLogSessionSecureCorsChain(loginHandler))
+	mux.Handle("POST /register", withLogSessionSecureCorsAuthChain(registerUserHandler))
+	mux.Handle("POST /login", withLogSessionSecureCorsAuthChain(loginHandler))
 	mux.Handle("POST /logout", withLogSessionSecureCorsChain(logoutHandler))
 	mux.Handle("POST /validateSession", withLogSessionSecureCorsChain(validateSessionHandler))
 	mux.Handle("GET /getAccountSettings", withLogSessionSecureCorsChain(getUserAccountSettingsHandler))
