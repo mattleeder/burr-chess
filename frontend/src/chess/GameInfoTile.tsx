@@ -495,6 +495,8 @@ export function GameInfoTile() {
   let bottomPaused
   let topUsername
   let bottomUsername
+  let topConnected
+  let bottomConnected
   let topPieceCounts
   let bottomPieceCounts
 
@@ -502,21 +504,25 @@ export function GameInfoTile() {
     topTime = game.matchData.activeState.whitePlayerTimeRemainingMilliseconds
     topPaused = isWhiteClockPaused(game)
     topUsername = game.whitePlayerUsername
+    topConnected = game.isWhiteConnected
     topPieceCounts = PieceColour.White
 
     bottomTime = game.matchData.activeState.blackPlayerTimeRemainingMilliseconds
     bottomPaused = isBlackClockPaused(game)
     bottomUsername = game.blackPlayerUsername
+    bottomConnected = game.isBlackConnected
     bottomPieceCounts = PieceColour.Black
   } else {
     topTime = game.matchData.activeState.blackPlayerTimeRemainingMilliseconds
     topPaused = isBlackClockPaused(game)
     topUsername = game.blackPlayerUsername
+    topConnected = game.isBlackConnected
     topPieceCounts = PieceColour.Black
 
     bottomTime = game.matchData.activeState.whitePlayerTimeRemainingMilliseconds
     bottomPaused = isWhiteClockPaused(game)
     bottomUsername = game.whitePlayerUsername
+    bottomConnected = game.isWhiteConnected
     bottomPieceCounts = PieceColour.White
   }
   
@@ -526,11 +532,11 @@ export function GameInfoTile() {
       <CountdownTimer className="playerTimeTop" paused={topPaused} countdownTimerMilliseconds={topTime}/>
       <div className='gameInfo'>
         <EventTypeDialog />
-        <PlayerInfo connected={game.isWhiteConnected} username={topUsername}/>
+        <PlayerInfo connected={topConnected} username={topUsername}/>
         <MoveHistoryControls />
         <Moves />
         <GameControls />
-        <PlayerInfo connected={game.isBlackConnected} username={bottomUsername}/>
+        <PlayerInfo connected={bottomConnected} username={bottomUsername}/>
       </div>
       <CountdownTimer className="playerTimeBottom" paused={bottomPaused} countdownTimerMilliseconds={bottomTime}/>
       <PlayerPieceCounts colour={bottomPieceCounts}/>
