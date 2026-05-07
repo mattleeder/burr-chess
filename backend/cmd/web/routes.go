@@ -16,29 +16,44 @@ func wrapWithSessionManager(sm *scs.SessionManager, handler http.Handler) http.H
 }
 
 func withLogSessionSecureCorsChain(handlerFunc http.HandlerFunc) http.Handler {
-	return app.withPerfLog(app.logRequest(app.recoverPanic(wrapWithSessionManager(app.sessionManager, secureHeaders(app.corsHeaders(http.HandlerFunc(handlerFunc)))))))
+	return app.withPerfLog(
+		app.logRequest(
+			app.recoverPanic(
+				app.corsHeaders(
+					app.rateLimit(
+						app.requireSameOrigin(
+							wrapWithSessionManager(
+								app.sessionManager, secureHeaders(
+									http.HandlerFunc(handlerFunc)))))))))
 }
 
 func withLogSecureCorsChain(handlerFunc http.HandlerFunc) http.Handler {
-	return app.withPerfLog(app.logRequest(app.recoverPanic(secureHeaders(app.corsHeaders(http.HandlerFunc(handlerFunc))))))
+	return app.withPerfLog(
+		app.logRequest(
+			app.recoverPanic(
+				app.corsHeaders(
+					app.rateLimit(
+						app.requireSameOrigin(
+							secureHeaders(
+								http.HandlerFunc(handlerFunc))))))))
 }
 
 func (app *application) routes() http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/", app.rateLimit(withLogSessionSecureCorsChain(rootHandler)))
-	mux.Handle("POST /getMoves", app.rateLimit(withLogSessionSecureCorsChain(getChessMovesHandler)))
-	mux.Handle("POST /joinQueue", app.rateLimit(withLogSessionSecureCorsChain(joinQueueHandler)))
-	mux.Handle("/matchroom/{matchID}/ws", app.rateLimit(withLogSessionSecureCorsChain(serveMatchroomWs)))
-	mux.Handle("GET /getHighestEloMatch", app.rateLimit(withLogSessionSecureCorsChain(getHighestEloMatchHandler)))
-	mux.Handle("POST /register", app.rateLimit(withLogSessionSecureCorsChain(registerUserHandler)))
-	mux.Handle("POST /login", app.rateLimit(withLogSessionSecureCorsChain(loginHandler)))
-	mux.Handle("POST /logout", app.rateLimit(withLogSessionSecureCorsChain(logoutHandler)))
-	mux.Handle("POST /validateSession", app.rateLimit(withLogSessionSecureCorsChain(validateSessionHandler)))
-	mux.Handle("GET /getAccountSettings", app.rateLimit(withLogSessionSecureCorsChain(getUserAccountSettingsHandler)))
-	mux.Handle("POST /emailChange", app.rateLimit(withLogSessionSecureCorsChain(updateEmailHandler)))
-	mux.Handle("POST /passwordChange", app.rateLimit(withLogSessionSecureCorsChain(updatePasswordHandler)))
+	mux.Handle("/", withLogSessionSecureCorsChain(rootHandler))
+	mux.Handle("POST /getMoves", withLogSessionSecureCorsChain(getChessMovesHandler))
+	mux.Handle("POST /joinQueue", withLogSessionSecureCorsChain(joinQueueHandler))
+	mux.Handle("/matchroom/{matchID}/ws", withLogSessionSecureCorsChain(serveMatchroomWs))
+	mux.Handle("GET /getHighestEloMatch", withLogSessionSecureCorsChain(getHighestEloMatchHandler))
+	mux.Handle("POST /register", withLogSessionSecureCorsChain(registerUserHandler))
+	mux.Handle("POST /login", withLogSessionSecureCorsChain(loginHandler))
+	mux.Handle("POST /logout", withLogSessionSecureCorsChain(logoutHandler))
+	mux.Handle("POST /validateSession", withLogSessionSecureCorsChain(validateSessionHandler))
+	mux.Handle("GET /getAccountSettings", withLogSessionSecureCorsChain(getUserAccountSettingsHandler))
+	mux.Handle("POST /emailChange", withLogSessionSecureCorsChain(updateEmailHandler))
+	mux.Handle("POST /passwordChange", withLogSessionSecureCorsChain(updatePasswordHandler))
 
 	mux.Handle("GET /userSearch", app.rateLimit(withLogSecureCorsChain(userSearchHandler)))
 	mux.Handle("GET /getTileInfo", app.rateLimit(withLogSecureCorsChain(getTileInfoHandler)))

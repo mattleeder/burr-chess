@@ -1,10 +1,10 @@
 // generated 2025-03-14, Mozilla Guideline v5.7, Go 1.23.3, intermediate config
 // https://ssl-config.mozilla.org/#server=go&version=1.23.3&config=intermediate&guideline=5.7
+
 package main
 
 import (
 	"burrchess/internal/models"
-	"crypto/tls"
 	"database/sql"
 	"encoding/hex"
 	"flag"
@@ -32,8 +32,7 @@ type application struct {
 	userRatings    *models.UserRatingsModel
 	dbTaskQueue    *models.TaskQueue
 	sessionManager *scs.SessionManager
-	corsOrigin     string
-	backendURL     string
+	allowedOrigin  string
 	rateLimiters   sync.Map
 }
 
@@ -104,7 +103,7 @@ func main() {
 		Path:     "/",
 		HttpOnly: true,
 		Persist:  false,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteStrictMode,
 		Secure:   true,
 	}
 
@@ -118,14 +117,9 @@ func main() {
 		errorLog.Fatal("SECRET_KEY must be a valid hex string: ", err)
 	}
 
-	corsOrigin := os.Getenv("CORS_ORIGIN")
-	if corsOrigin == "" {
-		errorLog.Fatal("CORS_ORIGIN environment variable not set")
-	}
-
-	backendURL := os.Getenv("BACKEND_URL")
-	if backendURL == "" {
-		errorLog.Fatal("BACKEND_URL environment variable not set")
+	allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
+	if allowedOrigin == "" {
+		errorLog.Fatal("ALLOWED_ORIGIN environment variable not set")
 	}
 
 	app = &application{
@@ -140,45 +134,13 @@ func main() {
 		userRatings:    &models.UserRatingsModel{DB: db},
 		dbTaskQueue:    models.DBTaskQueue,
 		sessionManager: sessionManager,
-		corsOrigin:     corsOrigin,
-		backendURL:     backendURL,
-	}
-
-	go func() {
-		redirectToHTTPS := func(w http.ResponseWriter, req *http.Request) {
-			http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
-		}
-		srv := &http.Server{
-			Handler:     http.HandlerFunc(redirectToHTTPS),
-			ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second,
-		}
-		log.Fatal(srv.ListenAndServe())
-	}()
-
-	// Due to a lack of DHE support, you -must- use an ECDSA cert to support IE 11 on Windows 7
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		CurvePreferences: []tls.CurveID{
-			tls.X25519, // Go 1.8+
-			tls.CurveP256,
-			tls.CurveP384,
-			//tls.x25519Kyber768Draft00, // Go 1.23+
-		},
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-		},
+		allowedOrigin:  allowedOrigin,
 	}
 
 	srv := &http.Server{
 		Addr:         *addrFlag,
 		ErrorLog:     errorLog,
 		Handler:      app.routes(),
-		TLSConfig:    tlsConfig,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -187,7 +149,7 @@ func main() {
 	go matchmakingService()
 
 	app.infoLog.Printf("Starting server on %s", addr)
-	err = srv.ListenAndServeTLS("cmd/web/localhost.crt", "cmd/web/localhost.key")
+	err = srv.ListenAndServe()
 	if err != nil {
 		errorLog.Fatal(err)
 	}

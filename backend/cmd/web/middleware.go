@@ -17,7 +17,7 @@ func secureHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		w.Header().Set("X-Frame-Options", "deny")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content")
 		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 
@@ -112,7 +112,7 @@ func secureHeaders(next http.Handler) http.Handler {
 func (app *application) corsHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// CORS
-		w.Header().Set("Access-Control-Allow-Origin", app.corsOrigin)
+		w.Header().Set("Access-Control-Allow-Origin", app.allowedOrigin)
 		w.Header().Set("Access-Control-Max-Age", "10")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
@@ -158,6 +158,19 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 		if !val.(*rate.Limiter).Allow() {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) requireSameOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodOptions {
+			origin := r.Header.Get("Origin")
+			if origin != "" && origin != app.allowedOrigin {
+				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

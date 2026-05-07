@@ -141,11 +141,6 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	w.Header().Set("Access-Control-Allow-Origin", app.corsOrigin)
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Max-Age", "10")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
 	cookie, err := r.Cookie("session")
 	if err != nil {
 		http.Error(w, "Missing session cookie", http.StatusUnauthorized)

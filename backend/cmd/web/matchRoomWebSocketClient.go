@@ -38,7 +38,7 @@ func (app *application) newUpgrader() websocket.Upgrader {
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
 			origin := strings.TrimRight(r.Header.Get("Origin"), "/")
-			want := strings.TrimRight(app.corsOrigin, "/")
+			want := strings.TrimRight(app.allowedOrigin, "/")
 			app.infoLog.Printf("WS CheckOrigin: got=%q want=%q", origin, want)
 			return origin == want
 		},
