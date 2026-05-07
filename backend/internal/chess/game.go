@@ -71,9 +71,6 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 	} else {
 		newGameState.halfMoveClock += 1
 	}
-	if newGameState.halfMoveClock%2 == 0 {
-		newGameState.fullMoveNumber += 1
-	}
 
 	var notationSuffix = ""
 
@@ -151,6 +148,7 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 	// Change Turn
 	if newGameState.turn == White {
 		newGameState.turn = Black
+		newGameState.fullMoveNumber += 1
 	} else {
 		newGameState.turn = White
 	}
