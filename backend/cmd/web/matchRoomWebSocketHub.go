@@ -577,12 +577,17 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 
 	whiteID := hub.players[WhitePlayer].id
 	blackID := hub.players[BlackPlayer].id
-	models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
-		return app.userRatings.UpdateRatingFromPlayerID(whiteID, ratingType, whiteNewElo)
-	})
-	models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
-		return app.userRatings.UpdateRatingFromPlayerID(blackID, ratingType, blackNewElo)
-	})
+	if hub.players[WhitePlayer].username.Valid {
+		models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
+			return app.userRatings.UpdateRatingFromPlayerID(whiteID, ratingType, whiteNewElo)
+		})
+	}
+	if hub.players[BlackPlayer].username.Valid {
+		models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
+			return app.userRatings.UpdateRatingFromPlayerID(blackID, ratingType, blackNewElo)
+		})
+	}
+
 	return nil
 }
 
