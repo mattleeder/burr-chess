@@ -231,7 +231,13 @@ function dispatchWebSocketMessage(data: unknown, dispatch: Dispatch<GameAction>)
   if (typeof data !== "string") return
 
   for (const msg of data.split("\n")) {
-    const parsed: ChessWebSocketMessage = JSON.parse(msg)
+    let parsed: ChessWebSocketMessage
+    try {
+      parsed = JSON.parse(msg)
+    } catch (e) {
+      console.error("Failed to parse WebSocket message:", msg, e)
+      continue
+    }
 
     switch (parsed.messageType) {
     case "sendPlayerCode":
