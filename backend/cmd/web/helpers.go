@@ -2,9 +2,11 @@ package main
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -116,6 +118,14 @@ func ReadSigned(r *http.Request, secretKey []byte, name string) (string, error) 
 	}
 
 	return value, nil
+}
+
+func generateCSRFToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
 }
 
 func (app *application) writeJSON(w http.ResponseWriter, data any) {

@@ -37,7 +37,8 @@ type getHighestEloMatchResponse struct {
 }
 
 type authData struct {
-	Username string `json:"username"`
+	Username  string `json:"username"`
+	CsrfToken string `json:"csrfToken"`
 }
 
 type updateEmailRequest struct {
@@ -333,16 +334,21 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
+	if !app.sessionManager.Exists(r.Context(), "csrfToken") {
+		app.sessionManager.Put(r.Context(), "csrfToken", generateCSRFToken())
+	}
+	csrfToken := app.sessionManager.GetString(r.Context(), "csrfToken")
+
 	if !app.sessionManager.Exists(r.Context(), "username") {
 		if !app.sessionManager.Exists(r.Context(), "playerID") {
 			app.sessionManager.Put(r.Context(), "playerID", generateNewPlayerId())
 		}
 		w.WriteHeader(http.StatusUnauthorized)
-		return
 	}
 
 	app.writeJSON(w, authData{
-		Username: app.sessionManager.GetString(r.Context(), "username"),
+		Username:  app.sessionManager.GetString(r.Context(), "username"),
+		CsrfToken: csrfToken,
 	})
 }
 

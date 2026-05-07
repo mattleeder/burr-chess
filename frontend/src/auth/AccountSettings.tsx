@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react"
+import React, { useContext, useEffect, useState } from "react"
 import { LoaderCircle } from "lucide-react"
 import { FormError } from "../ui/forms/FormError"
 import { submitFormData } from "../ui/forms/FormUtilities"
 import { API } from "../api"
+import { AuthContext } from "./AuthContext"
 import "./AccountPage.css"
 import { SideBar } from "../ui/SideBar"
 
@@ -46,6 +47,7 @@ function PasswordChange() {
     currentPassword: "",
     newPassword: "",
   })
+  const { csrfToken } = useContext(AuthContext)
 
   const handleSubmit = async (formData: FormData) => {
     if (loading) return
@@ -53,6 +55,7 @@ function PasswordChange() {
 
     const result = await submitFormData<PasswordValidationErrors>(API.passwordChange, {
       credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
       body: JSON.stringify({
         currentPassword: formData.get("currentPassword") || "",
         newPassword: formData.get("newPassword") || "",
@@ -90,6 +93,7 @@ function EmailChange({ accountSettings, setAccountSettings }: { accountSettings:
   const [validationErrors, setValidationErrors] = useState<EmailValidationErrors>({
     email: "",
   })
+  const { csrfToken } = useContext(AuthContext)
 
   const handleSubmit = async (formData: FormData) => {
     if (loading) return
@@ -97,6 +101,7 @@ function EmailChange({ accountSettings, setAccountSettings }: { accountSettings:
 
     const result = await submitFormData<EmailValidationErrors>(API.emailChange, {
       credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
       body: JSON.stringify({
         email: formData.get("email") || "",
       }),

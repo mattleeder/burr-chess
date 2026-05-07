@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useContext, useEffect, useRef, useState } from "react"
 import { LoaderCircle } from "lucide-react"
 import { NavigateFunction, useNavigate } from "react-router-dom"
-import { API } from "../api"
+import { API, apiFetch } from "../api"
+import { AuthContext } from "../auth/AuthContext"
 import "./QueueTiles.css"
 
 interface QueueObject {
@@ -10,15 +11,16 @@ interface QueueObject {
 }
 
 interface QueueState {
-    waiting: boolean, 
+    waiting: boolean,
     setWaiting: React.Dispatch<React.SetStateAction<boolean>>,
     inQueue: boolean,
     setInQueue: React.Dispatch<React.SetStateAction<boolean>>,
-    queueName: string, 
-    setQueueName:  React.Dispatch<React.SetStateAction<string>>, 
+    queueName: string,
+    setQueueName:  React.Dispatch<React.SetStateAction<string>>,
     eventSource: React.RefObject<EventSource | null>,
     matchFoundState: React.RefObject<MatchFoundState | null>,
     navigate: NavigateFunction,
+    csrfToken: string,
 }
 
 interface MatchFoundState {
@@ -54,13 +56,13 @@ addQueueObject(10, 0)
 addQueueObject(10, 5)
 addQueueObject(15, 10)
 
-async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<MatchFoundState | null>, eventSource: React.RefObject<EventSource | null>, navigate: NavigateFunction) {
+async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<MatchFoundState | null>, eventSource: React.RefObject<EventSource | null>, navigate: NavigateFunction, csrfToken: string) {
   const queueObject = queueObjectsMap.get(queueName)
   if (queueObject === undefined) {
     throw new Error("Queue object not found")
   }
 
-  const response = await fetch(API.joinQueue, {
+  const response = await apiFetch(API.joinQueue, csrfToken, {
     signal: AbortSignal.timeout(5000),
     method: "POST",
     credentials: 'include',
@@ -100,12 +102,12 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
   }
 }
 
-async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<EventSource | null>) {
+async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<EventSource | null>, csrfToken: string) {
   const queueObject = queueObjectsMap.get(queueName)
   if (queueObject === undefined) {
     throw new Error("Queue object not found")
   }
-  const response = await fetch(API.joinQueue, {
+  const response = await apiFetch(API.joinQueue, csrfToken, {
     method: "POST",
     credentials: 'include',
     body: JSON.stringify({
@@ -133,6 +135,7 @@ async function toggleQueue({
   eventSource,
   matchFoundState,
   navigate,
+  csrfToken
 }: QueueState, newQueueName: string) {
   if (waiting) {
     return
@@ -151,19 +154,19 @@ async function toggleQueue({
   try {
     switch(clickAction) {
     case ClickAction.leaveQueue:
-      await tryLeaveQueue(queueName, eventSource)
+      await tryLeaveQueue(queueName, eventSource, csrfToken)
       setInQueue(false)
       setQueueName("")
       break
-  
+
     case ClickAction.changeQueue:
-      await tryLeaveQueue(queueName, eventSource)
-      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate)
+      await tryLeaveQueue(queueName, eventSource, csrfToken)
+      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken)
       setQueueName(newQueueName)
       break
-        
+
     case ClickAction.joinQueue:
-      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate)
+      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken)
       setInQueue(true)
       setQueueName(newQueueName)
     }
@@ -197,6 +200,8 @@ export function QueueTiles() {
   const eventSource = useRef<EventSource>(null)
   const matchFoundState = useRef<MatchFoundState>(null)
   const navigate = useNavigate()
+  const { csrfToken } = useContext(AuthContext)
+  const csrfTokenRef = useRef(csrfToken)
 
   const queueState: QueueState = {
     waiting,
@@ -208,16 +213,21 @@ export function QueueTiles() {
     eventSource,
     matchFoundState,
     navigate,
+    csrfToken,
   }
-  
+
   useEffect(() => {
     queueNameRef.current = queueName
   }, [queueName])
 
   useEffect(() => {
+    csrfTokenRef.current = csrfToken
+  }, [csrfToken])
+
+  useEffect(() => {
     const leaveOnUnmount = async () => {
       try {
-        await tryLeaveQueue(queueNameRef.current, eventSource)
+        await tryLeaveQueue(queueNameRef.current, eventSource, csrfTokenRef.current)
       } catch (e) {
         console.error(e)
       }

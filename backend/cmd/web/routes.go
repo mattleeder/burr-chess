@@ -21,9 +21,9 @@ func withLogSessionSecureCorsChain(handlerFunc http.HandlerFunc) http.Handler {
 			app.recoverPanic(
 				app.corsHeaders(
 					app.rateLimit(
-						app.requireSameOrigin(
-							wrapWithSessionManager(
-								app.sessionManager, secureHeaders(
+						wrapWithSessionManager(
+							app.sessionManager, app.requireSameOrigin(
+								secureHeaders(
 									http.HandlerFunc(handlerFunc)))))))))
 }
 

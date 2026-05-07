@@ -1,7 +1,8 @@
 import React, { useContext, useEffect, useReducer, useRef, useState } from "react";
 import { PieceColour, PieceVariant } from "./ChessLogic";
 import { GameContext, gameContext } from "./GameContext";
-import { API } from "../api";
+import { AuthContext } from "../auth/AuthContext";
+import { API, apiFetch } from "../api";
 import "./ChessBoard.css";
 
 const colourToString = new Map<PieceColour, string>()
@@ -119,6 +120,7 @@ async function clickHandler(
   game: gameContext,
   state: ClickState,
   dispatch: React.Dispatch<ClickStateAction>,
+  csrfToken: string,
 ) {
   if (game.flip) {
     position = 63 - position
@@ -171,7 +173,7 @@ async function clickHandler(
   }
 
   case ClickAction.showMoves: {
-    const data = await fetchPossibleMoves(position, game)
+    const data = await fetchPossibleMoves(position, game, csrfToken)
     dispatch({
       type: 'showMoves',
       piece: position,
@@ -186,12 +188,12 @@ async function clickHandler(
   dispatch({ type: 'setWaiting', waiting: false })
 }
 
-async function fetchPossibleMoves(position: number, game: gameContext) {
+async function fetchPossibleMoves(position: number, game: gameContext, csrfToken: string) {
   try {
     const mostRecentMove = game.matchData.stateHistory.at(-1)
     if (!mostRecentMove) return {}
 
-    const response = await fetch(API.fetchMoves, {
+    const response = await apiFetch(API.fetchMoves, csrfToken, {
       method: "POST",
       body: JSON.stringify({
         fen: mostRecentMove["FEN"],
@@ -374,6 +376,7 @@ export function ChessBoard({ resizeable, defaultWidth, chessboardContainerStyles
   if (!game) {
     throw new Error('ChessBoard must be used within a GameContext Provider')
   }
+  const { csrfToken } = useContext(AuthContext)
 
   useEffect(() => {
     dispatch({ type: 'clear' })
@@ -391,7 +394,7 @@ export function ChessBoard({ resizeable, defaultWidth, chessboardContainerStyles
 
   const handleClick = (position: number) => {
     if (enableClicking) {
-      clickHandler(position, game, clickState, dispatch)
+      clickHandler(position, game, clickState, dispatch, csrfToken)
     }
   }
 

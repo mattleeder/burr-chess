@@ -1,5 +1,15 @@
 const BASE_URL = import.meta.env.VITE_API_URL as string
 
+export function apiFetch(input: RequestInfo, csrfToken: string, init?: RequestInit): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    headers: {
+      "X-CSRF-Token": csrfToken,
+      ...init?.headers,
+    },
+  })
+}
+
 export const API = {
   fetchMoves:         `${BASE_URL}/getMoves`,
   joinQueue:          `${BASE_URL}/joinQueue`,

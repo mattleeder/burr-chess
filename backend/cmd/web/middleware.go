@@ -171,6 +171,15 @@ func (app *application) requireSameOrigin(next http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 				return
 			}
+			// Skip CSRF check for validateSession — it's what issues the token
+			if r.URL.Path != "/validateSession" {
+				token := r.Header.Get("X-CSRF-Token")
+				sessionToken := app.sessionManager.GetString(r.Context(), "csrfToken")
+				if sessionToken == "" || token != sessionToken {
+					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+					return
+				}
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

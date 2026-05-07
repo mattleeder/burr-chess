@@ -4,6 +4,7 @@ import { API } from "../api";
 
 interface AuthData {
   username: string
+  csrfToken: string
 }
 
 interface RegisterData {
@@ -34,6 +35,7 @@ export interface AuthContextType {
   isLoading: boolean,
   isLoggedIn: boolean,
   authData: AuthData,
+  csrfToken: string,
   register(data: RegisterData): Promise<FormResult<RegisterFormValidationErrors>>,
   login(data: LoginData): Promise<FormResult<LoginFormValidationErrors>>,
   logout(): Promise<FormResult>,
@@ -41,12 +43,14 @@ export interface AuthContextType {
 
 const DEFAULT_AUTH_DATA: AuthData = {
   username: "",
+  csrfToken: "",
 }
 
 export const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isLoggedIn: false,
   authData: DEFAULT_AUTH_DATA,
+  csrfToken: "",
   register: () => Promise.resolve({ ok: false }),
   login: () => Promise.resolve({ ok: false }),
   logout: () => Promise.resolve({ ok: false }),
@@ -56,10 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [authData, setAuthData] = useState<AuthData>(DEFAULT_AUTH_DATA)
+  const [csrfToken, setCsrfToken] = useState("")
 
   async function register(data: RegisterData): Promise<FormResult<RegisterFormValidationErrors>> {
     const result = await submitFormData<RegisterFormValidationErrors>(API.register, {
       credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
       body: JSON.stringify({
         username: data.username,
         password: data.password,
@@ -79,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(data: LoginData): Promise<FormResult<LoginFormValidationErrors>> {
     const result = await submitFormData<LoginFormValidationErrors>(API.login, {
       credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
       body: JSON.stringify({
         username: data.username,
         password: data.password,
@@ -97,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function logout(): Promise<FormResult> {
     const result = await submitFormData(API.logout, {
       credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
     })
 
     if (result.ok) {
@@ -116,8 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           signal: AbortSignal.timeout(5000),
         })
 
+        const data = await response.json()
+        setCsrfToken(data.csrfToken)
         if (response.ok) {
-          const data = await response.json()
           setIsLoggedIn(true)
           setAuthData(data)
         }
@@ -132,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ isLoading, isLoggedIn, authData, register, login, logout }}>
+    <AuthContext.Provider value={{ isLoading, isLoggedIn, authData, csrfToken, register, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
