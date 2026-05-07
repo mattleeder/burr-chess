@@ -10,7 +10,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const PASSWORD_COST = 14
+const (
+	PASSWORD_COST     = 14
+	MinUsernameLength = 3
+	MaxUsernameLength = 32
+	MinPasswordLength = 1
+	MaxPasswordLength = 72 // bcrypt silently truncates at 72 bytes
+)
 
 type UserQuery struct {
 	whereClause string
@@ -138,14 +144,12 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 
 	app.infoLog.Printf("Inserting new user: %v\n", username)
 
-	if username == "" {
-		app.errorLog.Printf("Username not given")
-		return 0, errors.New("username not given")
+	if len(username) < MinUsernameLength || len(username) > MaxUsernameLength {
+		return 0, errors.New("username must be between 3 and 32 characters")
 	}
 
-	if password == "" {
-		app.errorLog.Printf("Password not given")
-		return 0, errors.New("password not given")
+	if len(password) < MinPasswordLength || len(password) > MaxPasswordLength {
+		return 0, errors.New("password must be between 8 and 72 characters")
 	}
 
 	var playerID = rand.Int63()
