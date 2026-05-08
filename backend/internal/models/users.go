@@ -91,6 +91,20 @@ type AccountSettings struct {
 	Email *string `json:"email"`
 }
 
+// isValidEmail returns false if the string is non-empty but not a plausible email address.
+// An empty string is allowed (means "remove email").
+func isValidEmail(email string) bool {
+	if email == "" {
+		return true
+	}
+	atIdx := strings.Index(email, "@")
+	if atIdx <= 0 || atIdx == len(email)-1 {
+		return false
+	}
+	domain := email[atIdx+1:]
+	return strings.Contains(domain, ".") && !strings.HasSuffix(domain, ".")
+}
+
 func hashPassword(password string) (string, error) {
 	var passwordBytes = []byte(password)
 	hashedPasswordBytes, err := bcrypt.GenerateFromPassword(passwordBytes, PASSWORD_COST)
@@ -162,6 +176,9 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 	}
 	var email = sql.NullString{Valid: false}
 	if options.email != nil {
+		if !isValidEmail(*options.email) {
+			return 0, errors.New("invalid email address")
+		}
 		email = sql.NullString{String: *options.email, Valid: true}
 	}
 
@@ -476,14 +493,13 @@ func (m *UserModel) UpdateEmail(playerID int64, newEmail string) error {
 	 WHERE player_id = ?
 	`
 
-	var validEmail = false
-	if newEmail != "" {
-		validEmail = true
+	if !isValidEmail(newEmail) {
+		return errors.New("invalid email address")
 	}
 
 	updateEmail := sql.NullString{
 		String: newEmail,
-		Valid:  validEmail,
+		Valid:  newEmail != "",
 	}
 
 	return m.execInTransaction(sqlStmt, updateEmail, playerID)
