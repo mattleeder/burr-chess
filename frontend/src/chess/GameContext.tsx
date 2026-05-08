@@ -71,6 +71,7 @@ interface OnConnectMessage {
   threefoldRepetition: boolean
   whitePlayerConnected: boolean
   blackPlayerConnected: boolean
+  millisecondsUntilTimeout: number
   whitePlayerUsername: string | null
   blackPlayerUsername: string | null
 }
@@ -186,6 +187,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       ...afterMove,
       isWhiteConnected: action.body.whitePlayerConnected,
       isBlackConnected: action.body.blackPlayerConnected,
+      millisecondsUntilOpponentTimeout: action.body.millisecondsUntilTimeout > 0 ? action.body.millisecondsUntilTimeout : null,
       whitePlayerUsername: action.body.whitePlayerUsername,
       blackPlayerUsername: action.body.blackPlayerUsername,
     }
