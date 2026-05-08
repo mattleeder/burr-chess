@@ -364,7 +364,10 @@ func (m *UserModel) SearchForUsers(searchString string) ([]UserClientSide, error
 	var joinDate int64
 	var lastSeen int64
 
-	rows, err := QueryWithRetry(m.DB, sqlStmt, strings.ToUpper(searchString))
+	// Escape GLOB special characters so user input can't act as wildcards,
+	// then append * for prefix matching.
+	escaped := strings.NewReplacer("*", "[*]", "?", "[?]", "[", "[[").Replace(strings.ToUpper(searchString))
+	rows, err := QueryWithRetry(m.DB, sqlStmt, escaped+"*")
 	if err != nil {
 		app.errorLog.Printf("Error in SearchForUsers: %s\n", err.Error())
 		return nil, err
