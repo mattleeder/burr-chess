@@ -18,9 +18,9 @@ const resultReasons = [
   "Draw",
   "WhiteResigned",
   "BlackResigned",
-  "Abort",
   "WhiteDisconnected",
   "BlackDisconnected",
+  "Abort",
 ]
 
 export interface pastMatchData {

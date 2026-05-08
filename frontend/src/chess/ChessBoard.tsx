@@ -410,7 +410,7 @@ function GameOverComponent({ squareWidth }: { squareWidth: number }) {
     return <></>
   }
 
-  const gameOverStatusCodes = ["Ongoing", "Stalemate", "Checkmate", "Threefold Repetition", "Insufficient Material", "White Flagged", "Black Flagged", "Draw", "White Resigned", "Black Resigned", "Game Aborted", "White Disconnected", "Black Disconnected"]
+  const gameOverStatusCodes = ["Ongoing", "Stalemate", "Checkmate", "Threefold Repetition", "Insufficient Material", "White Flagged", "Black Flagged", "Draw", "White Resigned", "Black Resigned", "White Disconnected", "Black Disconnected", "Game Aborted"]
   const gameOverText = gameOverStatusCodes[game.matchData.gameOverStatus || 0]
 
   return <div style={{ transform: `translate(${0}px, ${squareWidth * 4}px)`, color: "black" }}>{gameOverText}</div>
