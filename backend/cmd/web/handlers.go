@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
@@ -361,6 +362,11 @@ func userSearchHandler(w http.ResponseWriter, r *http.Request) {
 	searchString := r.URL.Query().Get("search")
 
 	if searchString == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if utf8.RuneCountInString(searchString) > models.MaxUsernameLength {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
