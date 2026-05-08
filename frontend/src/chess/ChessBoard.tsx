@@ -188,6 +188,55 @@ async function clickHandler(
   dispatch({ type: 'setWaiting', waiting: false })
 }
 
+async function dragHandler(
+  startIdx: number,  // board index (from board.map — already in board coordinates)
+  endIdx: number,    // visual index (from getSquareIdxFromClick — needs flip conversion)
+  game: gameContext,
+  state: ClickState,
+  dispatch: React.Dispatch<ClickStateAction>,
+  csrfToken: string,
+) {
+  if (state.waiting) return
+  if (game.matchData.activeMove !== game.matchData.stateHistory.length - 1) return
+  if (game.matchData.gameOverStatus !== 0) return
+  if (game.matchData.activeState.board[startIdx][0] !== game.playerColour) return
+
+  const boardEndIdx = game.flip ? 63 - endIdx : endIdx
+
+  let moves: number[]
+  let captures: number[]
+  let promotionNextMove: boolean
+
+  // Reuse already-loaded moves if this piece is already selected
+  if (state.selectedPiece === startIdx) {
+    moves = state.moves
+    captures = state.captures
+    promotionNextMove = state.promotionNextMove
+  } else {
+    dispatch({ type: 'setWaiting', waiting: true })
+    const data = await fetchPossibleMoves(startIdx, game, csrfToken)
+    dispatch({ type: 'setWaiting', waiting: false })
+    moves = data?.moves ?? []
+    captures = data?.captures ?? []
+    promotionNextMove = data?.triggerPromotion ?? false
+  }
+
+  if (![...moves, ...captures].includes(boardEndIdx)) {
+    dispatch({ type: 'clear' })
+    return
+  }
+
+  if (promotionNextMove) {
+    // Show the promotion picker at the destination square
+    dispatch({ type: 'showMoves', piece: startIdx, moves, captures, promotionNextMove })
+    dispatch({ type: 'startPromotion', square: boardEndIdx })
+    return
+  }
+
+  wsPostMove(boardEndIdx, startIdx, "", game)
+  dispatch({ type: 'clear' })
+}
+
 async function fetchPossibleMoves(position: number, game: gameContext, csrfToken: string) {
   try {
     const mostRecentMove = game.matchData.stateHistory.at(-1)
@@ -425,8 +474,7 @@ export function ChessBoard({ resizeable, defaultWidth, chessboardContainerStyles
               index={idx}
               onDragEndCallback={(startIdx, endIdx) => {
                 if (startIdx !== endIdx) {
-                  handleClick(startIdx)
-                  handleClick(endIdx)
+                  dragHandler(startIdx, endIdx, game, clickState, dispatch, csrfToken)
                 }
               }}
             />

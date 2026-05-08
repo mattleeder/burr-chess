@@ -93,6 +93,12 @@ func (taskQueue *TaskQueue) EnQueueReturnErrorOnlyTask(task errorOnlyTask) error
 	return taskResponse.err
 }
 
+// Drain blocks until all previously enqueued tasks have been processed.
+// Call this during shutdown after the HTTP server has stopped accepting requests.
+func (taskQueue *TaskQueue) Drain() {
+	taskQueue.EnQueueReturn(func() (any, error) { return nil, nil })
+}
+
 var app *application
 
 var DBTaskQueue *TaskQueue

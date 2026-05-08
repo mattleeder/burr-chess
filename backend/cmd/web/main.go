@@ -5,13 +5,16 @@ package main
 
 import (
 	"burrchess/internal/models"
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"flag"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -150,9 +153,25 @@ func main() {
 	go matchmakingService()
 	go app.cleanupRateLimiters()
 
-	app.infoLog.Printf("Starting server on %s", addr)
-	err = srv.ListenAndServe()
-	if err != nil {
-		errorLog.Fatal(err)
+	go func() {
+		app.infoLog.Printf("Starting server on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errorLog.Fatal(err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
+
+	app.infoLog.Println("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		errorLog.Printf("Server shutdown error: %v", err)
 	}
+
+	app.infoLog.Println("Draining DB task queue...")
+	models.DBTaskQueue.Drain()
+	app.infoLog.Println("Shutdown complete")
 }
