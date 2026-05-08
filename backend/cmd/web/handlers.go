@@ -139,6 +139,14 @@ var clients = Clients{
 
 func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Request) {
 
+	// Disable the server's WriteTimeout for this long-lived SSE connection.
+	// The heartbeat ticker detects dead clients instead.
+	rc := http.NewResponseController(w)
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+		app.serverError(w, err, false)
+		return
+	}
+
 	// Set appropriate headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

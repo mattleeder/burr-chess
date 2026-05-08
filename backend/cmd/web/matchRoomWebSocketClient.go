@@ -127,6 +127,12 @@ func serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
 	app.infoLog.Println("WS Request")
 	app.infoLog.Printf("Session token: %s\n", app.sessionManager.Token(r.Context()))
 
+	rc := http.NewResponseController(w)
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+		app.serverError(w, err, false)
+		return
+	}
+
 	matchID, err := strconv.ParseInt(r.PathValue("matchID"), 10, 64)
 	if err != nil {
 		app.errorLog.Println(err)

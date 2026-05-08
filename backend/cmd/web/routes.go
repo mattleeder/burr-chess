@@ -71,11 +71,11 @@ func (app *application) routes() http.Handler {
 	mux.Handle("POST /emailChange", withLogSessionSecureCorsChain(updateEmailHandler))
 	mux.Handle("POST /passwordChange", withLogSessionSecureCorsChain(updatePasswordHandler))
 
-	mux.Handle("GET /userSearch", app.rateLimit(withLogSecureCorsChain(userSearchHandler)))
-	mux.Handle("GET /getTileInfo", app.rateLimit(withLogSecureCorsChain(getTileInfoHandler)))
-	mux.Handle("GET /getPastMatches", app.rateLimit(withLogSecureCorsChain(getPastMatchesListHandler)))
+	mux.Handle("GET /userSearch", withLogSecureCorsChain(userSearchHandler))
+	mux.Handle("GET /getTileInfo", withLogSecureCorsChain(getTileInfoHandler))
+	mux.Handle("GET /getPastMatches", withLogSecureCorsChain(getPastMatchesListHandler))
 
-	mux.Handle("/listenformatch", app.withPerfLog(app.logRequest(app.recoverPanic(http.HandlerFunc(app.matchFoundSSEHandler)))))
+	mux.Handle("/listenformatch", app.withPerfLog(app.logRequest(app.recoverPanic(app.corsHeaders(app.rateLimit(secureHeaders(http.HandlerFunc(app.matchFoundSSEHandler))))))))
 
 	// Add the pprof routes (localhost only)
 	mux.Handle("/debug/pprof/", requireLocalhost(http.HandlerFunc(pprof.Index)))
