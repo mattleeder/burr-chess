@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	PASSWORD_COST              = 14
-	MinUsernameLength          = 3
-	MaxUsernameLength          = 32
-	MinPasswordLength          = 1
-	MaxPasswordLength          = 72 // bcrypt silently truncates at 72 bytes
-	maxPlayerIDRetries         = 5
-	playerIDUniqueErrSubstr    = "users.player_id"
+	PASSWORD_COST           = 14
+	MinUsernameLength       = 3
+	MaxUsernameLength       = 32
+	MinPasswordLength       = 1
+	MaxPasswordLength       = 72 // bcrypt silently truncates at 72 bytes
+	maxPlayerIDRetries      = 5
+	playerIDUniqueErrSubstr = "users.player_id"
 )
 
 type UserQuery struct {
@@ -102,7 +102,7 @@ func isValidEmail(email string) bool {
 		return false
 	}
 	domain := email[atIdx+1:]
-	return strings.Contains(domain, ".") && !strings.HasSuffix(domain, ".")
+	return strings.Contains(domain, ".") && !strings.HasSuffix(domain, ".") && strings.Count(email, "@") == 1
 }
 
 func hashPassword(password string) (string, error) {
