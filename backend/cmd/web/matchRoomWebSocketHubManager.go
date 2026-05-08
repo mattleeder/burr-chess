@@ -19,16 +19,6 @@ func newMatchRoomHubManager() *MatchRoomHubManager {
 
 var matchRoomHubManager = newMatchRoomHubManager()
 
-func (hubManager *MatchRoomHubManager) registerNewHub(matchID int64) (*MatchRoomHub, error) {
-	newHub, err := newMatchRoomHub(matchID)
-	if err != nil {
-		app.errorLog.Println(err)
-		return nil, err
-	}
-	hubManager.hubs[matchID] = newHub
-	return hubManager.hubs[matchID], nil
-}
-
 func (hubManager *MatchRoomHubManager) unregisterHub(matchID int64) {
 	hubManager.mu.Lock()
 	defer hubManager.mu.Unlock()
