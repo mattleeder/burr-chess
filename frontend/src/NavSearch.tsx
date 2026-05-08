@@ -12,12 +12,13 @@ interface navbarSearchResult {
   lastSeen: number,
 }
 
-async function fetchSearchResults(searchString: string) {
+async function fetchSearchResults(searchString: string, signal: AbortSignal) {
   const url = API.userSearch + `?search=${encodeURIComponent(searchString)}`
 
   try {
     const response = await fetch(url, {
       method: "GET",
+      signal,
     })
 
     if (response.ok) {
@@ -30,21 +31,30 @@ async function fetchSearchResults(searchString: string) {
   }
 }
 
-async function handleSearchChange(newSearchString: string, setSearchValue: React.Dispatch<React.SetStateAction<string>> ,setLoading: React.Dispatch<React.SetStateAction<boolean>>, setSearchResults: React.Dispatch<React.SetStateAction<navbarSearchResult[]>>) {
+async function handleSearchChange(newSearchString: string, setSearchValue: React.Dispatch<React.SetStateAction<string>>, setLoading: React.Dispatch<React.SetStateAction<boolean>>, setSearchResults: React.Dispatch<React.SetStateAction<navbarSearchResult[]>>, abortControllerRef: React.RefObject<AbortController | null>) {
   setLoading(true)
   setSearchValue(newSearchString)
-  const searchResults = await fetchSearchResults(newSearchString)
-  setSearchResults(searchResults || [])
-  setLoading(false)
+
+  if (abortControllerRef.current) {
+    abortControllerRef.current.abort()
+  }
+  const controller = new AbortController()
+  abortControllerRef.current = controller
+
+  const searchResults = await fetchSearchResults(newSearchString, controller.signal)
+  if (!controller.signal.aborted) {
+    setSearchResults(searchResults || [])
+    setLoading(false)
+  }
 }
 
-function NavbarSearchInput({ ref, setLoading, setSearchResults, setSearchValue }: { ref: React.RefObject<HTMLInputElement | null>, setLoading: React.Dispatch<React.SetStateAction<boolean>>, setSearchResults: React.Dispatch<React.SetStateAction<navbarSearchResult[]>>, setSearchValue: React.Dispatch<React.SetStateAction<string>> }) {
+function NavbarSearchInput({ ref, onChange }: { ref: React.RefObject<HTMLInputElement | null>, onChange: (value: string) => void }) {
   return (
-    <input 
+    <input
       className="navbarSearchInput"
       ref={ref}
       placeholder='Search'
-      onChange={(event) => handleSearchChange(event.target.value, setSearchValue, setLoading, setSearchResults)}
+      onChange={(event) => onChange(event.target.value)}
     ></input>
   )
 }
@@ -85,6 +95,8 @@ export function NavbarSearch() {
   const [loadingSearchResults, setLoadingSearchResults] = useState(false)
   const [searchResults, setSearchResults] = useState<navbarSearchResult[]>([])
   const [searchValue, setSearchValue] = useState("")
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 
 
@@ -110,7 +122,12 @@ export function NavbarSearch() {
   return (
     <div className="navbarSearchContainer" onMouseOver={() => mouseOver.current = true} onMouseOut={() => mouseOver.current = false}>
       <div className='navbarSearchResultsContainer' style={{width: `${searchActive ? "80%" : "0%"}`}}>
-        <NavbarSearchInput ref={inputRef} setLoading={setLoadingSearchResults} setSearchResults={setSearchResults} setSearchValue={setSearchValue}/>
+        <NavbarSearchInput ref={inputRef} onChange={(value) => {
+          if (debounceRef.current) clearTimeout(debounceRef.current)
+          debounceRef.current = setTimeout(() => {
+            handleSearchChange(value, setSearchValue, setLoadingSearchResults, setSearchResults, abortControllerRef)
+          }, 300)
+        }}/>
         <div className='navbarSearchResultsContent'>
           <ul>
             <NavbarSearchResults active={searchActive} loading={loadingSearchResults} searchResults={searchResults} searchValue={searchValue}/>

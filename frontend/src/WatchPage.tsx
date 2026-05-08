@@ -20,7 +20,7 @@ const resultReasons = [
   "BlackResigned",
   "WhiteDisconnected",
   "BlackDisconnected",
-  "Abort",
+  "GameAborted",
 ]
 
 export interface pastMatchData {
