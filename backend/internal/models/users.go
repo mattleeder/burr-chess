@@ -11,11 +11,13 @@ import (
 )
 
 const (
-	PASSWORD_COST     = 14
-	MinUsernameLength = 3
-	MaxUsernameLength = 32
-	MinPasswordLength = 1
-	MaxPasswordLength = 72 // bcrypt silently truncates at 72 bytes
+	PASSWORD_COST              = 14
+	MinUsernameLength          = 3
+	MaxUsernameLength          = 32
+	MinPasswordLength          = 1
+	MaxPasswordLength          = 72 // bcrypt silently truncates at 72 bytes
+	maxPlayerIDRetries         = 5
+	playerIDUniqueErrSubstr    = "users.player_id"
 )
 
 type UserQuery struct {
@@ -152,7 +154,6 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 		return 0, errors.New("password must be between 8 and 72 characters")
 	}
 
-	var playerID = rand.Int63()
 	hashedPassword, err := hashPassword(password)
 	password = "" // Overwrite password to avoid accidental usage
 	if err != nil {
@@ -192,10 +193,26 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 	}
 	defer stmtTwo.Close()
 
-	_, err = ExecStatementWithRetry(stmtOne, playerID, username, hashedPassword, email)
-
-	if err != nil {
+	var playerID int64
+	for range maxPlayerIDRetries {
+		playerID = rand.Int63()
+		_, err = ExecStatementWithRetry(stmtOne, playerID, username, hashedPassword, email)
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), playerIDUniqueErrSubstr) {
+			app.infoLog.Printf("player_id collision, retrying\n")
+			continue
+		}
+		// Any other error (e.g. username UNIQUE violation) — don't retry
 		app.errorLog.Printf("Error inserting new user: %s\n", err.Error())
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			app.errorLog.Printf("insert users: unable to rollback: %s", rollbackErr)
+		}
+		return 0, err
+	}
+	if err != nil {
+		app.errorLog.Printf("Failed to insert user after %d player_id retries\n", maxPlayerIDRetries)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			app.errorLog.Printf("insert users: unable to rollback: %s", rollbackErr)
 		}
