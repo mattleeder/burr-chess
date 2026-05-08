@@ -9,7 +9,8 @@ function sleep(delayMs: number){
 }
 
 async function fetchHighestEloMatchID(signal: AbortSignal) {
-  let initialRetryDelayMs = 1000
+  let retryDelayMs = 1000
+  const retryDelayMaxMs = 30_000 // 30s
 
   while (true) {
 
@@ -23,9 +24,12 @@ async function fetchHighestEloMatchID(signal: AbortSignal) {
       if (!response.ok) {
         throw new Error(`Response status: ${response.status}`)
       }
-      
-      const data = await response.json()
-      return data["matchID"]
+
+      // 204 is response.ok == true, as there is no content we should retry
+      if (response.status != 204) {
+        const data = await response.json()
+        return data["matchID"]
+      }      
     }
       
     catch (error: unknown) {
@@ -39,8 +43,8 @@ async function fetchHighestEloMatchID(signal: AbortSignal) {
       }
     }
 
-    await sleep(initialRetryDelayMs)
-    initialRetryDelayMs *= 2
+    await sleep(retryDelayMs)
+    retryDelayMs = Math.min(retryDelayMs * 2, retryDelayMaxMs)
   }
 }
 
