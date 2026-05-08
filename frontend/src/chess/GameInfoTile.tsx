@@ -154,9 +154,10 @@ function formatDuration(durationInMilliseconds: number): string {
     return "00:00:00.0"
   }
   const time = new Date(durationInMilliseconds);
-  // const hours = time.getUTCHours();
-  const minutes = time.getUTCMinutes();
-  const seconds = time.getUTCSeconds();
+  const totalSeconds = Math.floor(durationInMilliseconds / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
   const milliseconds = time.getUTCMilliseconds();
     
   let result = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0")
