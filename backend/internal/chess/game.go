@@ -82,7 +82,8 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 		}
 		promotionVariant, ok := stringToVariant[promotionString]
 		if !ok {
-			errorLog.Println("Could not understand promotion string")
+			errorLog.Printf("invalid promotion string %q, defaulting to queen\n", promotionString)
+			promotionVariant = Queen
 		}
 		newGameState.board[move].piece = createPiece(move, promotionColour, promotionVariant)
 		notationSuffix = "=" + promotionString
