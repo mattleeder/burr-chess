@@ -500,7 +500,11 @@ func (hub *MatchRoomHub) oneSidedEvent(sender messageIdentifier, event eventType
 		hub.endGame(resignCodes[senderIdx])
 		hub.sendMessageToAllClients(hub.currentGameState)
 	case disconnect:
-		if hub.opponentCanClaim[senderIdx] {
+		opp := opponent(senderIdx)
+		timeoutElapsed := !hub.players[opp].connected &&
+			!hub.players[opp].timeoutStarted.IsZero() &&
+			time.Since(hub.players[opp].timeoutStarted) >= pingTimeout
+		if hub.opponentCanClaim[senderIdx] || timeoutElapsed {
 			disconnectCodes := [2]chess.GameOverStatusCode{chess.BlackDisconnected, chess.WhiteDisconnected}
 			hub.endGame(disconnectCodes[senderIdx])
 			hub.sendMessageToAllClients(hub.currentGameState)
