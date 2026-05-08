@@ -120,7 +120,7 @@ export function parseGameStateFromFEN(fen: string): gameState {
   if (args[3].length > 1) {
     const file = fileToNumber.get(args[3][0])
     const rank = parseInt(args[3][1])
-    if (file) {
+    if (file !== undefined) {
       game.enPassantSquare = file + (8 - rank) * 8
     }
   }
