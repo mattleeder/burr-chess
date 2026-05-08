@@ -88,7 +88,7 @@ function PasswordChange() {
 
 function EmailChange({ accountSettings, setAccountSettings }: { accountSettings: AccountSettings, setAccountSettings: React.Dispatch<React.SetStateAction<AccountSettings | null>> }) {
   const [loading, setLoading] = useState(false)
-  const [currentEmail] = useState(accountSettings.email ?? "")
+  const [currentEmail, setCurrentEmail] = useState(accountSettings.email ?? "")
   const [newEmail, setNewEmail] = useState("")
   const [validationErrors, setValidationErrors] = useState<EmailValidationErrors>({
     email: "",
@@ -108,12 +108,12 @@ function EmailChange({ accountSettings, setAccountSettings }: { accountSettings:
     })
 
     if (result.ok) {
+      const updatedEmail = formData.get("email")?.toString() || ""
+      setCurrentEmail(updatedEmail)
+      setNewEmail("")
       setAccountSettings((current) => {
         if (current === null) return null
-        return {
-          ...current,
-          email: formData.get("email")?.toString() || null,
-        }
+        return { ...current, email: updatedEmail || null }
       })
     } else if (result.data) {
       setValidationErrors(result.data)
@@ -134,7 +134,19 @@ function EmailChange({ accountSettings, setAccountSettings }: { accountSettings:
         <FormError errorMessage={validationErrors.email} />
       </div>
       <button className='signInButton'>Change Email</button>
-      <button className='signInButton' style={{backgroundColor: "red"}}>Remove Email</button>
+      <button className='signInButton' style={{backgroundColor: "red"}} formNoValidate formAction={async () => {
+        const result = await submitFormData<EmailValidationErrors>(API.emailChange, {
+          credentials: "include",
+          headers: { "X-CSRF-Token": csrfToken },
+          body: JSON.stringify({ email: "" }),
+        })
+        if (result.ok) {
+          setCurrentEmail("")
+          setAccountSettings((current) => current === null ? null : { ...current, email: null })
+        } else if (result.data) {
+          setValidationErrors(result.data)
+        }
+      }}>Remove Email</button>
     </form>
   )
 }

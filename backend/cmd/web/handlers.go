@@ -52,6 +52,11 @@ type updatePasswordRequest struct {
 	NewPassword     string `json:"newPassword"`
 }
 
+type updatePasswordValidationErrors struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
 func generateNewPlayerId() int64 {
 	return rand.Int63()
 }
@@ -258,6 +263,13 @@ func registerUserHandler(w http.ResponseWriter, r *http.Request) {
 	newUserOptions := models.CreateNewUserOptions(newUser)
 
 	var registerUserValidationErrors models.NewUserInfo
+
+	if utf8.RuneCountInString(newUser.Username) < models.MinUsernameLength || utf8.RuneCountInString(newUser.Username) > models.MaxUsernameLength {
+		registerUserValidationErrors.Username = fmt.Sprintf("Username must be between %d and %d characters.", models.MinUsernameLength, models.MaxUsernameLength)
+		w.WriteHeader(http.StatusBadRequest)
+		app.writeJSON(w, registerUserValidationErrors)
+		return
+	}
 
 	playerID, err := app.users.InsertNew(newUser.Username, newUser.Password, &newUserOptions)
 	if err != nil {
@@ -500,7 +512,8 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, authorized := app.users.Authenticate(username, updatePasswordData.CurrentPassword)
 	if !authorized {
-		app.clientError(w, http.StatusUnauthorized)
+		w.WriteHeader(http.StatusBadRequest)
+		app.writeJSON(w, updatePasswordValidationErrors{CurrentPassword: "Current password is incorrect."})
 		return
 	}
 
