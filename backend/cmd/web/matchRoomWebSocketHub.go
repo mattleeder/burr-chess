@@ -266,6 +266,10 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 		return fmt.Errorf("error unmarshalling JSON: %v", err)
 	}
 
+	if chessMove.Body.Piece < 0 || chessMove.Body.Piece > 63 || chessMove.Body.Move < 0 || chessMove.Body.Move > 63 {
+		return errors.New("move indices out of bounds")
+	}
+
 	if !chess.IsMoveValid(hub.currentFEN, chessMove.Body.Piece, chessMove.Body.Move) {
 		return errors.New("move is not valid")
 	}
