@@ -155,7 +155,7 @@ func startingMatchHistory(timeFormatInMilliseconds int64) ([]byte, error) {
 	return jsonStr, nil
 }
 
-func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatchmakingData, timeFormatInMilliseconds int64, incrementInMilliseconds int64) error {
+func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatchmakingData, timeFormatInMilliseconds int64, incrementInMilliseconds int64) (int64, error) {
 	playerOneID := playerOneData.playerID
 	playerTwoID := playerTwoData.playerID
 
@@ -172,7 +172,7 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 	startingHistory, err := startingMatchHistory(timeFormatInMilliseconds)
 	if err != nil {
 		app.errorLog.Printf("Error creating starting history for new match: %v\n", err)
-		return err
+		return 0, err
 	}
 
 	var averageElo float64 = (float64(playerOneData.elo) + float64(playerTwoData.elo)) / 2
@@ -191,7 +191,7 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 	})
 	if err != nil {
 		app.errorLog.Printf("Error inserting new match: %v\n", err)
-		return err
+		return 0, err
 	}
 
 	clients.mu.Lock()
@@ -207,7 +207,7 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 	}
 	clients.clients[playerTwoID].channel <- fmt.Sprintf("%v,%v,%v", matchID, timeFormatInMilliseconds, incrementInMilliseconds)
 
-	return nil
+	return matchID, nil
 }
 
 func matchPlayers() {
@@ -257,7 +257,7 @@ func matchPlayers() {
 
 			// Unlock before createMatch to avoid holding queue.mu while locking clients.mu
 			queue.mu.Unlock()
-			err := createMatch(playerOne, playerTwo, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
+			matchID, err := createMatch(playerOne, playerTwo, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
 			queue.mu.Lock()
 
 			if err != nil {
@@ -267,9 +267,12 @@ func matchPlayers() {
 
 			// Re-check in case player left during createMatch
 			if queue.awaitingRemoval[playerOne.playerID] || queue.awaitingRemoval[playerTwo.playerID] {
-				// match was created but player already left — need to abort it
-				// log and mark matched anyway so they get cleaned up
-				app.errorLog.Printf("Player left queue during match creation")
+				app.errorLog.Printf("Player left queue during match creation, deleting match %v", matchID)
+				queue.mu.Unlock()
+				if deleteErr := app.liveMatches.EnQueueReturnDeleteMatch(matchID); deleteErr != nil {
+					app.errorLog.Printf("Failed to delete orphaned match %v: %v", matchID, deleteErr)
+				}
+				queue.mu.Lock()
 			}
 
 			playerOne.isMatched = true

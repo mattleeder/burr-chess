@@ -444,6 +444,40 @@ func (m *LiveMatchModel) EnQueueMoveMatchToPastMatches(matchID int64, result int
 	})
 }
 
+func (m *LiveMatchModel) DeleteMatch(matchID int64) error {
+	sqlStmt := `DELETE FROM live_matches WHERE match_id = ?`
+
+	tx, err := m.DB.Begin()
+	if err != nil {
+		app.errorLog.Printf("DeleteMatch: error starting transaction: %v\n", err)
+		return err
+	}
+
+	stmt, err := tx.Prepare(sqlStmt)
+	if err != nil {
+		app.errorLog.Printf("DeleteMatch: error preparing statement: %v\n", err)
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = ExecStatementWithRetry(stmt, matchID)
+	if err != nil {
+		app.errorLog.Printf("DeleteMatch: error executing statement: %v\n", err)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			app.errorLog.Printf("DeleteMatch: unable to rollback: %v", rollbackErr)
+		}
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (m *LiveMatchModel) EnQueueReturnDeleteMatch(matchID int64) error {
+	return DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
+		return m.DeleteMatch(matchID)
+	})
+}
+
 func (m *LiveMatchModel) GetHighestEloMatch() (matchID int64, err error) {
 
 	var matchIDorNull sql.NullInt64
