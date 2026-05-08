@@ -56,7 +56,7 @@ addQueueObject(10, 0)
 addQueueObject(10, 5)
 addQueueObject(15, 10)
 
-async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<MatchFoundState | null>, eventSource: React.RefObject<EventSource | null>, navigate: NavigateFunction, csrfToken: string) {
+async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<MatchFoundState | null>, eventSource: React.RefObject<EventSource | null>, navigate: NavigateFunction, csrfToken: string, onError: () => void) {
   const queueObject = queueObjectsMap.get(queueName)
   if (queueObject === undefined) {
     throw new Error("Queue object not found")
@@ -99,6 +99,8 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
     console.error(`SSE Error: ${event}`)
     console.error(event)
     eventSource.current?.close()
+    tryLeaveQueue(queueName, eventSource, csrfToken).catch(console.error)
+    onError()
   }
 }
 
@@ -161,12 +163,12 @@ async function toggleQueue({
 
     case ClickAction.changeQueue:
       await tryLeaveQueue(queueName, eventSource, csrfToken)
-      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken)
+      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken, () => { setInQueue(false); setQueueName("") })
       setQueueName(newQueueName)
       break
 
     case ClickAction.joinQueue:
-      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken)
+      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken, () => { setInQueue(false); setQueueName("") })
       setInQueue(true)
       setQueueName(newQueueName)
     }
@@ -226,6 +228,7 @@ export function QueueTiles() {
 
   useEffect(() => {
     const leaveOnUnmount = async () => {
+      if (!queueNameRef.current) return
       try {
         await tryLeaveQueue(queueNameRef.current, eventSource, csrfTokenRef.current)
       } catch (e) {

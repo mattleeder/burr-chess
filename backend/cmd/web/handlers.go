@@ -190,8 +190,6 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 		app.infoLog.Printf("Closed SSE for playerID: %v\n", playerID)
 	}()
 
-	defer app.liveMatches.EnQueueLogAll()
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		app.infoLog.Println("Streaming not supported")
