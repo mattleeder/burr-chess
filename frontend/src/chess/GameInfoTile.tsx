@@ -410,7 +410,8 @@ function CountdownTimer({ countdownTimerMilliseconds, paused, className } : { co
       return
     }
 
-    const intervalID = setInterval(updateTimer, 1000)
+    const updateIntervalMilliseconds = 100
+    const intervalID = setInterval(updateTimer, updateIntervalMilliseconds)
 
     return () => {
       clearInterval(intervalID)
