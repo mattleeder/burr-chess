@@ -170,7 +170,27 @@ export function gameStateToFEN(currentState: gameState): string {
     }
   }
 
-  fen.push(" w KQkq - 0 1")
+  // Active colour
+  fen.push(currentState.activeColour === PieceColour.Black ? " b " : " w ")
+
+  // Castling rights
+  let castling = ""
+  if (currentState.whiteCanKingSideCastle) castling += "K"
+  if (currentState.whiteCanQueenSideCastle) castling += "Q"
+  if (currentState.blackCanKingSideCastle) castling += "k"
+  if (currentState.blackCanQueenSideCastle) castling += "q"
+  fen.push(castling || "-")
+
+  // En passant square
+  if (currentState.enPassantSquare !== null) {
+    const file = currentState.enPassantSquare % 8
+    const rank = 8 - Math.floor(currentState.enPassantSquare / 8)
+    fen.push(" " + String.fromCharCode("a".charCodeAt(0) + file) + rank)
+  } else {
+    fen.push(" -")
+  }
+
+  fen.push(" 0 1")
 
   return fen.join("")
 }
