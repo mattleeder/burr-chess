@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -161,11 +162,11 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 	app.infoLog.Printf("Inserting new user: %v\n", username)
 
 	if len(username) < MinUsernameLength || len(username) > MaxUsernameLength {
-		return 0, errors.New("username must be between 3 and 32 characters")
+		return 0, fmt.Errorf("username must be between %d and %d characters", MinUsernameLength, MaxUsernameLength)
 	}
 
 	if len(password) < MinPasswordLength || len(password) > MaxPasswordLength {
-		return 0, errors.New("password must be between 8 and 72 characters")
+		return 0, fmt.Errorf("password must be between %d and %d characters", MinPasswordLength, MaxPasswordLength)
 	}
 
 	hashedPassword, err := hashPassword(password)
