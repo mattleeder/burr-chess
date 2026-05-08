@@ -502,8 +502,8 @@ func getMovesandCapturesForPiece(piecePosition int, currentGameState gameState) 
 		captures = append(captures, kingCaptures...)
 	}
 
-	// Double check: king must move
-	if checkCount >= 2 {
+	// Double check: king must move (non-king pieces cannot help)
+	if checkCount >= 2 && piece.variant != King {
 		return []int{}, []int{}, false, true
 	}
 

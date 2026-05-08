@@ -665,6 +665,30 @@ func TestGetValidMovesForPiece(t *testing.T) {
 		},
 
 		// ============================================================
+		// DOUBLE CHECK — king must move, other pieces immobilised
+		// ============================================================
+		// Position: white king e1(60), white bishop c1(58)
+		//           black king a8(0), black rook e8(4), black knight f3(45)
+		// Both rook (e-file) and knight (attacks e1) give check simultaneously.
+		// King safe squares: d1(59), f1(61), f2(53). d2/e2 are attacked.
+		{
+			name:       "double check — king can move",
+			fen:        "k3r3/8/8/8/8/5n2/8/2B1K3 w - - 0 1",
+			pieceIndex: 60, // white king e1
+			expectedMoves: []int{53, 59, 61}, // f2, d1, f1 (d2 attacked by knight, e2 attacked by rook)
+			expectedCaptures:                         []int{},
+			expectedFriendlyKingInCheckOrPiecePinned: true,
+		},
+		{
+			name:                                     "double check — non-king piece has no moves",
+			fen:                                      "k3r3/8/8/8/8/5n2/8/2B1K3 w - - 0 1",
+			pieceIndex:                               58, // white bishop c1
+			expectedMoves:                            []int{},
+			expectedCaptures:                         []int{},
+			expectedFriendlyKingInCheckOrPiecePinned: true,
+		},
+
+		// ============================================================
 		// PROMOTION
 		// ============================================================
 

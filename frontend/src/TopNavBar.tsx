@@ -33,7 +33,7 @@ export function TopNavBar() {
       <div className='navBarContainer right'>
         <NavbarSearch />
 
-        {auth.isLoggedIn ? <AccountDropdown /> : <Link to={{pathname: '/login', search: `?referrer=${window.location.pathname}`}}>Sign In</Link>}
+        {auth.isLoggedIn ? <AccountDropdown /> : <Link to={{pathname: '/login', search: `?referrer=${encodeURIComponent(window.location.pathname)}`}}>Sign In</Link>}
 
         <ToggleDropdown title={<Settings className='navbarIcon'/>} >
           <ToggleDropdownSubmenu title="Theme">
