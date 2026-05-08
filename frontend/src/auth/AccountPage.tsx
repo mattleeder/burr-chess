@@ -119,7 +119,7 @@ async function fetchPageData(username: string, activePage: Page, pageCache: Reac
   }
 
   for (const [searchTerm, value] of searchParams) {
-    url += `${searchTerm}=${value}&`
+    url += `${searchTerm}=${encodeURIComponent(value)}&`
   }
 
   try {
@@ -250,7 +250,7 @@ export function AccountPage() {
                 <TrainFront style={{marginLeft: "auto"}}/>
               </div>
               <div style={{textAlign: "center"}}>
-                {playerData?.ratings.bullet || "-"}
+                {playerData?.ratings.bullet ?? "-"}
               </div>
             </div>
           </li>
@@ -261,7 +261,7 @@ export function AccountPage() {
                 <Flame style={{marginLeft: "auto"}}/>
               </div>
               <div style={{textAlign: "center"}}>
-                {playerData?.ratings.blitz || "-"}
+                {playerData?.ratings.blitz ?? "-"}
               </div>
             </div>
           </li>
@@ -272,7 +272,7 @@ export function AccountPage() {
                 <Rabbit style={{marginLeft: "auto"}}/>
               </div>
               <div style={{textAlign: "center"}}>
-                {playerData?.ratings.rapid || "-"}
+                {playerData?.ratings.rapid ?? "-"}
               </div>
             </div>
           </li>
@@ -283,7 +283,7 @@ export function AccountPage() {
                 <Turtle style={{marginLeft: "auto"}}/>
               </div>
               <div style={{textAlign: "center"}}>
-                {playerData?.ratings.classical || "-"}
+                {playerData?.ratings.classical ?? "-"}
               </div>
             </div>
           </li>

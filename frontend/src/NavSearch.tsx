@@ -13,7 +13,7 @@ interface navbarSearchResult {
 }
 
 async function fetchSearchResults(searchString: string) {
-  const url = API.userSearch + `?search=${searchString}`
+  const url = API.userSearch + `?search=${encodeURIComponent(searchString)}`
 
   try {
     const response = await fetch(url, {
