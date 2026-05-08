@@ -154,7 +154,7 @@ function getPositionFromMouseEvent(event: React.MouseEvent<Element, MouseEvent>)
 }
 
 async function fetchPlayerTileData(username: string): Promise<PlayerInfoTileData | undefined> {
-  const url = API.getTileInfo + `?search=${username}`
+  const url = API.getTileInfo + `?search=${encodeURIComponent(username)}`
   try {
     const response = await fetch(url, { method: "GET" })
     if (response.ok) {

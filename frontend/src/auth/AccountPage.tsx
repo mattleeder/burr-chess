@@ -139,7 +139,7 @@ async function fetchPageData(username: string, activePage: Page, pageCache: Reac
 }
 
 async function fetchUserData(username: string, signal: AbortSignal) {
-  const url = API.getTileInfo + `?search=${username}`
+  const url = API.getTileInfo + `?search=${encodeURIComponent(username)}`
 
   try {
     const response = await fetch(url, {
