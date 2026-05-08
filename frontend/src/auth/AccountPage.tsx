@@ -172,6 +172,7 @@ export function AccountPage() {
   // Get user data
   useEffect(() => {
     let ignore = false
+    pageCache.current.clear()
     setLoadingPlayerData(true)
     const controller = new AbortController()
     const signal = controller.signal;
