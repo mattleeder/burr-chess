@@ -1,7 +1,9 @@
 package models
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"errors"
 	"strings"
 	"time"
@@ -13,6 +15,13 @@ const (
 	SqliteBusyErrSubstr   = "SQLITE_BUSY"
 	SqliteUniqueErrSubstr = "UNIQUE"
 )
+
+func GenerateNewPlayerId() int64 {
+	var b [8]byte
+	rand.Read(b[:])
+	id := int64(binary.LittleEndian.Uint64(b[:]))
+	return id
+}
 
 func ExecStatementWithRetry(stmt *sql.Stmt, args ...any) (sql.Result, error) {
 

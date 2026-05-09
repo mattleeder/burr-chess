@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -213,7 +212,7 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 
 	var playerID int64
 	for range maxPlayerIDRetries {
-		playerID = rand.Int63()
+		playerID = GenerateNewPlayerId()
 		_, err = ExecStatementWithRetry(stmtOne, playerID, username, hashedPassword, email)
 		if err == nil {
 			break

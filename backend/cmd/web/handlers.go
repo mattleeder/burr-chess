@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -57,10 +56,6 @@ type updatePasswordValidationErrors struct {
 	NewPassword     string `json:"newPassword"`
 }
 
-func generateNewPlayerId() int64 {
-	return rand.Int63()
-}
-
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Strict-Transport-Security", "max-age=63072000")
 	app.clientError(w, http.StatusNotFound)
@@ -98,7 +93,7 @@ func joinQueueHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Generate new playerID if it doesnt exist, this is for logged out players
 	if !app.sessionManager.Exists(r.Context(), "playerID") && joinQueue.Action == "join" {
-		var playerID = generateNewPlayerId()
+		var playerID = models.GenerateNewPlayerId()
 		app.sessionManager.Put(r.Context(), "playerID", playerID)
 	} else if !app.sessionManager.Exists(r.Context(), "playerID") && joinQueue.Action == "leave" {
 		app.clientError(w, http.StatusBadRequest)
@@ -365,7 +360,7 @@ func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !app.sessionManager.Exists(r.Context(), "username") {
 		if !app.sessionManager.Exists(r.Context(), "playerID") {
-			app.sessionManager.Put(r.Context(), "playerID", generateNewPlayerId())
+			app.sessionManager.Put(r.Context(), "playerID", models.GenerateNewPlayerId())
 		}
 		w.WriteHeader(http.StatusUnauthorized)
 	}
