@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -74,7 +73,7 @@ func (c *MatchRoomHubClient) readPump() {
 	})
 	for {
 		_, message, err := c.conn.ReadMessage()
-		app.infoLog.Println(message)
+		app.infoLog.Println(string(message))
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				app.errorLog.Printf("error: %v", err)
@@ -88,7 +87,7 @@ func (c *MatchRoomHubClient) readPump() {
 		}
 		sender := []byte{byte(c.playerIdentifier)}
 		message = append(sender, message...)
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		message = bytes.TrimSpace(bytes.ReplaceAll(message, newline, space))
 		c.hub.broadcast <- message
 	}
 }
@@ -151,12 +150,10 @@ func serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !app.sessionManager.Exists(r.Context(), "playerID") {
-		app.serverError(w, errors.New("no playerID in session"), false)
+	playerID, ok := app.sessionPlayerID(w, r)
+	if !ok {
 		return
 	}
-
-	var playerID = app.sessionManager.GetInt64(r.Context(), "playerID")
 
 	upgrader := app.newUpgrader()
 	conn, err := upgrader.Upgrade(w, r, nil)

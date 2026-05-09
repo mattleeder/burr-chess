@@ -139,6 +139,28 @@ func (app *application) writeJSON(w http.ResponseWriter, data any) {
 	w.Write(jsonStr)
 }
 
+// sessionPlayerID returns the playerID stored in the session.
+// If it is absent it writes a 401 and returns false.
+func (app *application) sessionPlayerID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	if !app.sessionManager.Exists(r.Context(), "playerID") {
+		app.clientError(w, http.StatusUnauthorized)
+		return 0, false
+	}
+	return app.sessionManager.GetInt64(r.Context(), "playerID"), true
+}
+
+// sessionPlayer returns the playerID and username stored in the session.
+// If either is absent it writes a 401 and returns false.
+func (app *application) sessionPlayer(w http.ResponseWriter, r *http.Request) (int64, string, bool) {
+	if !app.sessionManager.Exists(r.Context(), "playerID") || !app.sessionManager.Exists(r.Context(), "username") {
+		app.clientError(w, http.StatusUnauthorized)
+		return 0, "", false
+	}
+	return app.sessionManager.GetInt64(r.Context(), "playerID"),
+		app.sessionManager.GetString(r.Context(), "username"),
+		true
+}
+
 func (app *application) withPerfLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

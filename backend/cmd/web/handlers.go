@@ -446,11 +446,10 @@ func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
-	if !app.sessionManager.Exists(r.Context(), "playerID") {
-		app.clientError(w, http.StatusUnauthorized)
+	playerID, ok := app.sessionPlayerID(w, r)
+	if !ok {
 		return
 	}
-	playerID := app.sessionManager.GetInt64(r.Context(), "playerID")
 
 	accountSettings, err := app.users.GetUserAccountSettings(playerID)
 	if err != nil {
@@ -462,11 +461,10 @@ func getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
-	if !app.sessionManager.Exists(r.Context(), "playerID") {
-		app.clientError(w, http.StatusUnauthorized)
+	playerID, ok := app.sessionPlayerID(w, r)
+	if !ok {
 		return
 	}
-	playerID := app.sessionManager.GetInt64(r.Context(), "playerID")
 
 	var updateEmailData updateEmailRequest
 
@@ -488,12 +486,10 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
-	if !app.sessionManager.Exists(r.Context(), "playerID") || !app.sessionManager.Exists(r.Context(), "username") {
-		app.clientError(w, http.StatusUnauthorized)
+	playerID, username, ok := app.sessionPlayer(w, r)
+	if !ok {
 		return
 	}
-	playerID := app.sessionManager.GetInt64(r.Context(), "playerID")
-	username := app.sessionManager.GetString(r.Context(), "username")
 
 	var updatePasswordData updatePasswordRequest
 
