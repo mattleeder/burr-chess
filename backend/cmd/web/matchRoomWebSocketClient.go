@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
 )
 
 type messageIdentifier byte
@@ -45,11 +46,17 @@ func (app *application) newUpgrader() websocket.Upgrader {
 	}
 }
 
+const (
+	wsRateLimit = 5  // messages per second
+	wsRateBurst = 10 // burst allowance
+)
+
 type MatchRoomHubClient struct {
 	hub              *MatchRoomHub
 	conn             *websocket.Conn
 	playerIdentifier messageIdentifier
 	send             chan []byte
+	limiter          *rate.Limiter
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -75,6 +82,10 @@ func (c *MatchRoomHubClient) readPump() {
 			break
 		}
 
+		if !c.limiter.Allow() {
+			app.infoLog.Printf("WS rate limit exceeded for player %d", c.playerIdentifier)
+			continue
+		}
 		sender := []byte{byte(c.playerIdentifier)}
 		message = append(sender, message...)
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))

@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
 )
 
 type MatchRoomHubManager struct {
@@ -70,5 +71,5 @@ func (hubManager *MatchRoomHubManager) registerClientToMatchRoomHub(conn *websoc
 		playerCode = messageIdentifier(BlackPlayer)
 	}
 
-	return &MatchRoomHubClient{hub: val, conn: conn, playerIdentifier: playerCode, send: make(chan []byte, 256)}, nil
+	return &MatchRoomHubClient{hub: val, conn: conn, playerIdentifier: playerCode, send: make(chan []byte, 256), limiter: rate.NewLimiter(wsRateLimit, wsRateBurst)}, nil
 }
