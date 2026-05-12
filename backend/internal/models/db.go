@@ -47,15 +47,12 @@ func wrapErrorOnlyTask(task errorOnlyTask) task {
 }
 
 func (taskQueue *TaskQueue) runWorker() {
-	for {
-		select {
-		case task := <-taskQueue.tasks:
-			channel := task.channel
-			result, err := task.task()
+	for task := range taskQueue.tasks {
+		channel := task.channel
+		result, err := task.task()
 
-			if channel != nil {
-				channel <- TaskResponse{val: result, err: err}
-			}
+		if channel != nil {
+			channel <- TaskResponse{val: result, err: err}
 		}
 	}
 }
