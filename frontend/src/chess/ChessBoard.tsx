@@ -274,6 +274,29 @@ function wsPostMove(position: number, piece: number, promotion: string, game: ga
       promotionString: promotion,
     }
   }))
+  // Optimistically move the piece so the board responds immediately.
+  // FEN is intentionally left unchanged so applyMoveMessage overwrites this
+  // with the authoritative server state when ON_MOVE arrives.
+  const newBoard: [PieceColour | null, PieceVariant | null][] =
+    game.matchData.activeState.board.map(sq => [sq[0], sq[1]])
+  newBoard[position] = newBoard[piece]
+  newBoard[piece] = [null, null]
+  if (promotion) {
+    const promotionVariant: Record<string, PieceVariant> = {
+      q: PieceVariant.Queen, n: PieceVariant.Knight,
+      r: PieceVariant.Rook,  b: PieceVariant.Bishop,
+    }
+    const colour = position <= 7 ? PieceColour.White : PieceColour.Black
+    newBoard[position] = [colour, promotionVariant[promotion] ?? PieceVariant.Queen]
+  }
+  game.setMatchData({
+    ...game.matchData,
+    activeState: {
+      ...game.matchData.activeState,
+      board: newBoard,
+      lastMove: [piece, position],
+    },
+  })
 }
 
 function getRowAndColFromBoardIndex(idx: number, flip: boolean): [number, number] {
