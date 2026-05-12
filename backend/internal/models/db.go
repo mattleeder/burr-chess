@@ -104,8 +104,6 @@ const numdbTaskQueueWorkers = 1
 
 func init() {
 
-	println("RUNNING MODELS INIT")
-
 	infoLog := log.New(os.Stdout, "DB INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stderr, "DB ERROR\t", log.Ldate|log.Ltime|log.Llongfile)
 	rowsLog := log.New(os.Stdout, "DB ROW\t", 0)
