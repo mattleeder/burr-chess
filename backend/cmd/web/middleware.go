@@ -9,10 +9,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// cleanupRateLimiters removes idle rate limiters from the sync.Map every 10 minutes
+const rateLimiterCleanupInterval = 10 * time.Minute
+
+// cleanupRateLimiters removes idle rate limiters from the sync.Map every rateLimiterCleanupInterval
 // to prevent unbounded memory growth as unique IPs accumulate.
 func (app *application) cleanupRateLimiters() {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(rateLimiterCleanupInterval)
 	defer ticker.Stop()
 	for range ticker.C {
 		app.rateLimiters.Range(func(key, val any) bool {
