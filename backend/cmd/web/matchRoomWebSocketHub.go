@@ -263,7 +263,7 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 	var chessMove postMoveResponse
 	err := json.Unmarshal(message[1:], &chessMove)
 	if err != nil {
-		return fmt.Errorf("error unmarshalling JSON: %v", err)
+		return fmt.Errorf("error unmarshalling JSON: %w", err)
 	}
 
 	if chessMove.Body.Piece < 0 || chessMove.Body.Piece > 63 || chessMove.Body.Move < 0 || chessMove.Body.Move > 63 {
@@ -299,7 +299,7 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 
 	jsonStr, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("error marshalling JSON: %v", err)
+		return fmt.Errorf("error marshalling JSON: %w", err)
 	}
 
 	hub.currentFEN = newFEN
