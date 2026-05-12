@@ -1,4 +1,4 @@
-import React, { useRef, useReducer, useCallback, useEffect, useState, createContext } from "react"
+import React, { useRef, useReducer, useCallback, useEffect, useLayoutEffect, useState, createContext } from "react"
 import type { ReactNode, Dispatch } from "react"
 import { parseGameStateFromFEN, PieceColour, PieceVariant } from "./ChessLogic"
 import { API } from "../api"
@@ -345,7 +345,9 @@ function createInitialState(timeFormatInMilliseconds: number): GameState {
 export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { children: ReactNode, matchID: string, timeFormatInMilliseconds: number }) {
   const [state, dispatch] = useReducer(gameReducer, timeFormatInMilliseconds, createInitialState)
   const stateRef = useRef(state)
-  stateRef.current = state
+  useLayoutEffect(() => {
+    stateRef.current = state
+  })
   const [flip, setFlip] = useState(false)
   const { webSocket, wsConnectionFailed } = useGameWebSocket(matchID, dispatch)
 
