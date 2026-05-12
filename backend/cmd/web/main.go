@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"flag"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,10 +24,11 @@ import (
 )
 
 type application struct {
-	errorLog       *log.Logger
-	infoLog        *log.Logger
-	perfLog        *log.Logger
-	debugLog       *log.Logger
+	// errorLog       *log.Logger
+	// infoLog        *log.Logger
+	// perfLog        *log.Logger
+	// debugLog       *log.Logger
+	logger         *slog.Logger
 	secretKey      []byte
 	liveMatches    *models.LiveMatchModel
 	pastMatches    *models.PastMatchModel
@@ -62,15 +63,24 @@ func main() {
 
 	flag.Parse()
 
-	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
-	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Llongfile)
-	perfLog := log.New(os.Stdout, "PERF\t", log.Lshortfile)
-	debugLog := log.New(os.Stdout, "DEBUG\t", log.Lshortfile)
+	var logger *slog.Logger
+
+	if os.Getenv("ENV") == "production" {
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}))
+	} else {
+		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level:     slog.LevelDebug,
+			AddSource: true,
+		}))
+	}
 
 	models.InitDatabase(*dbDriverName, *dbDataSourceName, *resetDB)
 	db, err := sql.Open(*dbDriverName, *dbDataSourceName)
 	if err != nil {
-		errorLog.Fatal(err)
+		logger.Error("failed to open database", "err", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -87,9 +97,11 @@ func main() {
 	var busyTimeout int
 	err = db.QueryRow("SELECT * FROM pragma_busy_timeout()").Scan(&busyTimeout)
 	if err != nil {
-		errorLog.Fatal(err)
+		logger.Error("failed to read busy timeout")
+		os.Exit(1)
 	}
-	infoLog.Printf("Busy timeout %d ms\n", busyTimeout)
+
+	logger.Info("Busy timeout ms", "busyTimeout", busyTimeout)
 
 	// Write-Ahead Logging
 	// _, err = db.Exec("PRAGMA journal_mode=WAL;")
@@ -113,24 +125,24 @@ func main() {
 
 	secretKeyHex := os.Getenv("SECRET_KEY")
 	if secretKeyHex == "" {
-		errorLog.Fatal("SECRET_KEY environment variable not set")
+		logger.Error("SECRET_KEY environment variable not set")
+		os.Exit(1)
 	}
 
 	secretKey, err := hex.DecodeString(secretKeyHex)
 	if err != nil {
-		errorLog.Fatal("SECRET_KEY must be a valid hex string: ", err)
+		logger.Error("SECRET_KEY must be a valid hex string")
+		os.Exit(1)
 	}
 
 	allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
 	if allowedOrigin == "" {
-		errorLog.Fatal("ALLOWED_ORIGIN environment variable not set")
+		logger.Error("ALLOWED_ORIGIN environment variable not set")
+		os.Exit(1)
 	}
 
 	app = &application{
-		errorLog:       errorLog,
-		infoLog:        infoLog,
-		perfLog:        perfLog,
-		debugLog:       debugLog,
+		logger:         logger,
 		secretKey:      secretKey,
 		liveMatches:    &models.LiveMatchModel{DB: db},
 		pastMatches:    &models.PastMatchModel{DB: db},
@@ -143,7 +155,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         *addrFlag,
-		ErrorLog:     errorLog,
+		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		Handler:      app.routes(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -154,9 +166,15 @@ func main() {
 	go app.cleanupRateLimiters()
 
 	go func() {
-		app.infoLog.Printf("Starting server on %s", addr)
+		app.logger.Info(
+			"Starting server",
+			"addr", *addrFlag,
+			"allowedOrigin", allowedOrigin,
+		)
+
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errorLog.Fatal(err)
+			logger.Error("server failed", "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -164,14 +182,17 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	<-quit
 
-	app.infoLog.Println("Shutting down server...")
+	app.logger.Info(
+		"Shutting down server",
+	)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		errorLog.Printf("Server shutdown error: %v", err)
+		app.logger.Error("server shutdown error", "err", err)
 	}
 
-	app.infoLog.Println("Draining DB task queue...")
+	app.logger.Info("Draining DB task queue...")
 	models.DBTaskQueue.Drain()
-	app.infoLog.Println("Shutdown complete")
+	app.logger.Info("Shutdown complete")
 }

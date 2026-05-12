@@ -4,6 +4,7 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
+      - ENV=${ENV}
       - DSN=file:/app/data/chess_site.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
     volumes:
       - ./data:/app/data  # persist SQLite db

@@ -329,7 +329,7 @@ function PiecesComponent({ flip, squareWidth, onDragEndCallback, rect, colour, v
         width: `${squareWidth}px`,
         height: `${squareWidth}px`,
         backgroundSize: `${squareWidth}px`,
-        transition: "transform 1s",
+        transition: "transform 0.1s",
       }}
     />
   )

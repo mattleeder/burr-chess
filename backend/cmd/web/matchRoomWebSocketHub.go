@@ -45,6 +45,7 @@ func colorName(color byte) string {
 
 // MatchRoomHub maintains the set of active clients and broadcasts messages to the clients.
 type MatchRoomHub struct {
+	app     *application
 	matchID int64
 
 	clients    map[*MatchRoomHubClient]bool
@@ -77,17 +78,17 @@ type MatchRoomHub struct {
 	matchStartTime        int64
 }
 
-func newMatchRoomHub(matchID int64) (*MatchRoomHub, error) {
+func newMatchRoomHub(matchID int64, app *application) (*MatchRoomHub, error) {
 	matchState, err := app.liveMatches.EnQueueReturnGetFromMatchID(matchID)
 	if err != nil {
-		app.errorLog.Println(err)
+		app.logger.Error("failed to get match state", "matchID", matchID, "err", err)
 		return nil, err
 	}
 
 	var matchStateHistory []MatchStateHistory
 	err = json.Unmarshal(matchState.GameHistoryJSONString, &matchStateHistory)
 	if err != nil {
-		app.errorLog.Printf("Error unmarshalling matchStateHistory %v\n", err)
+		app.logger.Error("failed to unmarshal match state history", "matchID", matchID, "err", err)
 		return nil, err
 	}
 
@@ -148,11 +149,12 @@ func newMatchRoomHub(matchID int64) (*MatchRoomHub, error) {
 
 	jsonStr, err := json.Marshal(currentGameState)
 	if err != nil {
-		app.errorLog.Printf("Error marshalling JSON: %v\n", err)
+		app.logger.Error("failed to marshal initial game state", "matchID", matchID, "err", err)
 		return nil, err
 	}
 
 	hub := &MatchRoomHub{
+		app:                      app,
 		matchID:                  matchID,
 		broadcast:                make(chan []byte),
 		register:                 make(chan *MatchRoomHubClient),
@@ -311,10 +313,10 @@ func (hub *MatchRoomHub) updateGameStateAfterMove(message []byte) error {
 
 	matchStateHistoryData, err := json.Marshal(data.Body.MatchStateHistory)
 	if err != nil {
-		app.errorLog.Printf("Error marshalling matchStateHistoryData: %s", err)
+		hub.app.logger.Error("failed to marshal match state history", "matchID", hub.matchID, "err", err)
 	}
 
-	app.liveMatches.EnQueueUpdateLiveMatch(models.UpdateMatchParams{
+	hub.app.liveMatches.EnQueueUpdateLiveMatch(models.UpdateMatchParams{
 		MatchID:                              hub.matchID,
 		NewFEN:                               newFEN,
 		LastMovePiece:                        chessMove.Body.Piece,
@@ -338,7 +340,7 @@ func (hub *MatchRoomHub) getCurrentMatchStateForNewConnection(playerIdentifier m
 	var gameState onMoveResponse
 	err := json.Unmarshal(hub.currentGameState, &gameState)
 	if err != nil {
-		app.errorLog.Printf("Error unmarshalling JSON: %v\n", err)
+		hub.app.logger.Error("failed to unmarshal game state for new connection", "matchID", hub.matchID, "err", err)
 		return nil, err
 	}
 
@@ -377,7 +379,7 @@ func (hub *MatchRoomHub) getCurrentMatchStateForNewConnection(playerIdentifier m
 
 	jsonStr, err := json.Marshal(response)
 	if err != nil {
-		app.errorLog.Printf("Error marshalling JSON: %v\n", err)
+		hub.app.logger.Error("failed to marshal connect response", "matchID", hub.matchID, "err", err)
 		return nil, err
 	}
 
@@ -390,14 +392,14 @@ func (hub *MatchRoomHub) getMessageType(message []byte) clientMessageType {
 	var msg userJSON
 	err := json.Unmarshal(message[1:], &msg)
 	if err != nil {
-		app.errorLog.Printf("Unable to parse message into userJSON: %s\n", err)
+		hub.app.logger.Error("failed to parse message type", "matchID", hub.matchID, "err", err)
 		return unknown
 	}
 
 	switch msg.MessageType {
 	case "postMove", "playerEvent":
 		if message[0] != byte(WhitePlayer) && message[0] != byte(BlackPlayer) {
-			app.errorLog.Printf("Non-player trying to send %s: %s\n", msg.MessageType, message)
+			hub.app.logger.Warn("non-player attempted to send message", "matchID", hub.matchID, "messageType", msg.MessageType)
 			return unknown
 		}
 		if msg.MessageType == "postMove" {
@@ -406,7 +408,7 @@ func (hub *MatchRoomHub) getMessageType(message []byte) clientMessageType {
 		return playerEvent
 	}
 
-	app.errorLog.Printf("Unknown message type\n")
+	hub.app.logger.Warn("unknown message type", "matchID", hub.matchID, "messageType", msg.MessageType)
 	return unknown
 }
 
@@ -421,7 +423,7 @@ func (hub *MatchRoomHub) handleMessage(message []byte) {
 		}
 		err := hub.updateGameStateAfterMove(message)
 		if err != nil {
-			app.errorLog.Println(err)
+			hub.app.logger.Error("failed to update game state after move", "matchID", hub.matchID, "err", err)
 			return
 		}
 		hub.sendMessageToAllClients(hub.currentGameState)
@@ -433,7 +435,7 @@ func (hub *MatchRoomHub) handleMessage(message []byte) {
 		hub.handlePlayerEvent(message)
 
 	default:
-		app.errorLog.Printf("Could not understand message: %s\n", message)
+		hub.app.logger.Warn("unrecognized message", "matchID", hub.matchID)
 	}
 }
 
@@ -447,7 +449,7 @@ func (hub *MatchRoomHub) handlePlayerEvent(message []byte) {
 	var data playerEventResponse
 	err := json.Unmarshal(message[1:], &data)
 	if err != nil {
-		app.errorLog.Printf("Could not unmarshal playerEvent: %s", err)
+		hub.app.logger.Error("failed to unmarshal player event", "matchID", hub.matchID, "err", err)
 		return
 	}
 
@@ -470,7 +472,7 @@ func (hub *MatchRoomHub) handlePlayerEvent(message []byte) {
 }
 
 func (hub *MatchRoomHub) makeNewEventOffer(sender messageIdentifier, event eventType) {
-	app.infoLog.Printf("Making new event from %v of type %s\n", sender, event)
+	hub.app.logger.Info("new event offer", "matchID", hub.matchID, "sender", sender, "event", event)
 	hub.offerActive = &offerInfo{sender, event}
 
 	senderIdx := byte(sender)
@@ -483,7 +485,7 @@ func (hub *MatchRoomHub) makeNewEventOffer(sender messageIdentifier, event event
 
 	jsonStr, err := json.Marshal(response)
 	if err != nil {
-		app.errorLog.Printf("Could not marshal opponentEventResponse: %s\n", err)
+		hub.app.logger.Error("failed to marshal opponent event response", "matchID", hub.matchID, "err", err)
 		return
 	}
 
@@ -521,7 +523,7 @@ func (hub *MatchRoomHub) takeBack() {
 }
 
 func (hub *MatchRoomHub) acceptEventOffer(event eventType) {
-	app.infoLog.Printf("Accepting event of type %s\n", event)
+	hub.app.logger.Info("accepting event offer", "matchID", hub.matchID, "event", event)
 	switch event {
 	case takeback:
 		hub.takeBack()
@@ -534,7 +536,6 @@ func (hub *MatchRoomHub) acceptEventOffer(event eventType) {
 // End game and ELO
 
 func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
-	app.infoLog.Println("Ending Match")
 	if hub.flagTimerHandle != nil {
 		hub.flagTimerHandle.Stop()
 		hub.flagTimerHandle = nil
@@ -544,7 +545,7 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 	var gameState onMoveResponse
 	err := json.Unmarshal(hub.currentGameState, &gameState)
 	if err != nil {
-		app.errorLog.Printf("Error unmarshalling JSON: %v\n", err)
+		hub.app.logger.Error("failed to unmarshal game state in endGame", "matchID", hub.matchID, "err", err)
 		return err
 	}
 
@@ -552,12 +553,20 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 
 	jsonStr, err := json.Marshal(gameState)
 	if err != nil {
-		app.errorLog.Printf("Error marshalling JSON: %v\n", err)
+		hub.app.logger.Error("failed to marshal game state in endGame", "matchID", hub.matchID, "err", err)
 		return err
 	}
 
 	hub.currentGameState = jsonStr
 	outcome := hub.getOutcomeInt(reason)
+
+	hub.app.logger.Info("match ended",
+		"matchID", hub.matchID,
+		"whitePlayerID", hub.players[WhitePlayer].id,
+		"blackPlayerID", hub.players[BlackPlayer].id,
+		"reason", reason,
+		"outcome", outcome,
+	)
 
 	var whitePoints, blackPoints float64
 	switch outcome {
@@ -570,29 +579,38 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 	}
 
 	whiteEloGain, blackEloGain := calculateEloChanges(hub.players[WhitePlayer].elo, whitePoints, hub.players[BlackPlayer].elo, blackPoints)
-	app.infoLog.Printf("whitePlayerElo: %v, whitePlayerEloGain: %v\n", hub.players[WhitePlayer].elo, whiteEloGain)
 
 	whiteNewElo := int64(math.Max(float64(hub.players[WhitePlayer].elo)+math.Round(whiteEloGain), 0))
 	blackNewElo := int64(math.Max(float64(hub.players[BlackPlayer].elo)+math.Round(blackEloGain), 0))
+
+	hub.app.logger.Info("elo updated",
+		"matchID", hub.matchID,
+		"whitePlayerID", hub.players[WhitePlayer].id,
+		"whiteOldElo", hub.players[WhitePlayer].elo,
+		"whiteNewElo", whiteNewElo,
+		"blackPlayerID", hub.players[BlackPlayer].id,
+		"blackOldElo", hub.players[BlackPlayer].elo,
+		"blackNewElo", blackNewElo,
+	)
 
 	ratingType := models.GetRatingTypeFromTimeFormat(hub.timeFormatInMilliseconds)
 
 	hub.gameEnded = true
 
-	if err := app.liveMatches.EnQueueReturnMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo); err != nil {
-		app.errorLog.Printf("Failed to persist match %d to past matches: %v\n", hub.matchID, err)
+	if err := hub.app.liveMatches.EnQueueReturnMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo); err != nil {
+		hub.app.logger.Error("failed to persist match to past matches", "matchID", hub.matchID, "err", err)
 	}
 
 	whiteID := hub.players[WhitePlayer].id
 	blackID := hub.players[BlackPlayer].id
 	if hub.players[WhitePlayer].username.Valid {
 		models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
-			return app.userRatings.UpdateRatingFromPlayerID(whiteID, ratingType, whiteNewElo)
+			return hub.app.userRatings.UpdateRatingFromPlayerID(whiteID, ratingType, whiteNewElo)
 		})
 	}
 	if hub.players[BlackPlayer].username.Valid {
 		models.DBTaskQueue.EnQueueErrorOnlyTask(func() error {
-			return app.userRatings.UpdateRatingFromPlayerID(blackID, ratingType, blackNewElo)
+			return hub.app.userRatings.UpdateRatingFromPlayerID(blackID, ratingType, blackNewElo)
 		})
 	}
 
@@ -608,7 +626,7 @@ func (hub *MatchRoomHub) pingStatusMessage(playerColour string, isConnected bool
 	}
 	jsonStr, err := json.Marshal(data)
 	if err != nil {
-		app.errorLog.Printf("Unable to marshal pingStatus: %s", err)
+		hub.app.logger.Error("failed to marshal ping status", "matchID", hub.matchID, "err", err)
 	}
 	return jsonStr, err
 }
@@ -628,7 +646,7 @@ func (hub *MatchRoomHub) setConnected(client *MatchRoomHubClient) {
 
 	pingMessage, err := hub.pingStatusMessage(colorName(idx), true, 0)
 	if err != nil {
-		app.errorLog.Printf("Could not generate pingMessage: %s", err)
+		hub.app.logger.Error("failed to generate connected ping message", "matchID", hub.matchID, "err", err)
 		return
 	}
 	hub.sendMessageToAllClients(pingMessage)
@@ -648,7 +666,7 @@ func (hub *MatchRoomHub) setDisconnected(client *MatchRoomHubClient) {
 
 	pingMessage, err := hub.pingStatusMessage(colorName(idx), false, pingTimeout.Milliseconds())
 	if err != nil {
-		app.errorLog.Printf("Could not generate pingMessage: %s", err)
+		hub.app.logger.Error("failed to generate disconnected ping message", "matchID", hub.matchID, "err", err)
 		return
 	}
 	hub.sendMessageToAllClients(pingMessage)
@@ -657,8 +675,8 @@ func (hub *MatchRoomHub) setDisconnected(client *MatchRoomHubClient) {
 // Main event loop
 
 func (hub *MatchRoomHub) run() {
-	app.infoLog.Println("Hub running")
-	defer app.infoLog.Println("Hub stopped")
+	hub.app.logger.Info("hub running", "matchID", hub.matchID)
+	defer hub.app.logger.Info("hub stopped", "matchID", hub.matchID)
 	for {
 		select {
 		case client := <-hub.register:
@@ -666,7 +684,7 @@ func (hub *MatchRoomHub) run() {
 			hub.setConnected(client)
 			jsonStr, err := hub.getCurrentMatchStateForNewConnection(client.playerIdentifier)
 			if err != nil {
-				app.errorLog.Printf("Could not get json for new connection: %v\n", err)
+				hub.app.logger.Error("failed to get state for new connection", "matchID", hub.matchID, "err", err)
 				continue
 			}
 			client.send <- jsonStr
@@ -686,7 +704,7 @@ func (hub *MatchRoomHub) run() {
 			flagCodes := [2]chess.GameOverStatusCode{chess.WhiteFlagged, chess.BlackFlagged}
 			err := hub.endGame(flagCodes[byte(hub.turn)])
 			if err != nil {
-				app.errorLog.Println(err)
+				hub.app.logger.Error("failed to end game on flag", "matchID", hub.matchID, "err", err)
 				continue
 			}
 			hub.sendMessageToAllClients(hub.currentGameState)
@@ -698,7 +716,6 @@ func (hub *MatchRoomHub) run() {
 			hub.opponentCanClaim[WhitePlayer] = true
 
 		case message := <-hub.broadcast:
-			app.infoLog.Printf("WS Message: %s\n", message)
 			hub.handleMessage(message)
 		}
 	}

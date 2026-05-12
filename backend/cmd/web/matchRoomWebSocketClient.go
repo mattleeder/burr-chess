@@ -20,6 +20,19 @@ const (
 	Spectator   = byte(iota)
 )
 
+func (id messageIdentifier) String() string {
+	switch id {
+	case messageIdentifier(WhitePlayer):
+		return "white"
+	case messageIdentifier(BlackPlayer):
+		return "black"
+	case messageIdentifier(Spectator):
+		return "spectator"
+	default:
+		return "unknown"
+	}
+}
+
 const (
 	writeWait      = 10 * time.Second
 	pongWait       = 20 * time.Second
@@ -39,7 +52,6 @@ func (app *application) newUpgrader() websocket.Upgrader {
 		CheckOrigin: func(r *http.Request) bool {
 			origin := strings.TrimRight(r.Header.Get("Origin"), "/")
 			want := strings.TrimRight(app.allowedOrigin, "/")
-			app.infoLog.Printf("WS CheckOrigin: got=%q want=%q", origin, want)
 			return origin == want
 		},
 	}
@@ -61,9 +73,9 @@ type MatchRoomHubClient struct {
 // readPump pumps messages from the websocket connection to the hub.
 func (c *MatchRoomHubClient) readPump() {
 	defer func() {
+		c.hub.app.logger.Info("websocket closed", "matchID", c.hub.matchID, "playerIdentifier", c.playerIdentifier, "colour", c.playerIdentifier)
 		c.hub.unregister <- c
 		c.conn.Close()
-		app.infoLog.Println("Client closed")
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -73,16 +85,14 @@ func (c *MatchRoomHubClient) readPump() {
 	})
 	for {
 		_, message, err := c.conn.ReadMessage()
-		app.debugLog.Println(string(message))
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				app.errorLog.Printf("error: %v", err)
+				c.hub.app.logger.Warn("unexpected websocket close", "matchID", c.hub.matchID, "colour", c.playerIdentifier, "err", err)
 			}
 			break
 		}
 
 		if !c.limiter.Allow() {
-			app.infoLog.Printf("WS rate limit exceeded for player %d", c.playerIdentifier)
 			continue
 		}
 		sender := []byte{byte(c.playerIdentifier)}
@@ -133,19 +143,17 @@ func (c *MatchRoomHubClient) writePump() {
 }
 
 // serveMatchroomWs handles websocket requests from the peer.
-func serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
-	app.infoLog.Println("WS Request")
+func (app *application) serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
 
 	rc := http.NewResponseController(w)
 	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
 	matchID, err := strconv.ParseInt(r.PathValue("matchID"), 10, 64)
 	if err != nil {
-		app.errorLog.Println(err)
-		http.Error(w, "Could not find match", http.StatusInternalServerError)
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -157,11 +165,11 @@ func serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
 	upgrader := app.newUpgrader()
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
-	client, err := matchRoomHubManager.registerClientToMatchRoomHub(conn, matchID, &playerID)
+	client, err := matchRoomHubManager.registerClientToMatchRoomHub(conn, matchID, &playerID, app)
 	if err != nil {
 		app.websocketError(conn, err)
 		return
@@ -182,4 +190,6 @@ func serveMatchroomWs(w http.ResponseWriter, r *http.Request) {
 
 	go client.writePump()
 	go client.readPump()
+
+	app.logger.Info("websocket opened", "matchID", matchID, "playerID", playerID, "colour", client.playerIdentifier)
 }

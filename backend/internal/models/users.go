@@ -2,8 +2,6 @@ package models
 
 import (
 	"database/sql"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -93,7 +91,7 @@ type AccountSettings struct {
 
 // isValidEmail returns false if the string is non-empty but not a plausible email address.
 // An empty string is allowed (means "remove email").
-func isValidEmail(email string) bool {
+func IsValidEmail(email string) bool {
 	if email == "" {
 		return true
 	}
@@ -160,14 +158,6 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 
 	app.infoLog.Printf("Inserting new user: %v\n", username)
 
-	if len(username) < MinUsernameLength || len(username) > MaxUsernameLength {
-		return 0, fmt.Errorf("username must be between %d and %d characters", MinUsernameLength, MaxUsernameLength)
-	}
-
-	if len(password) < MinPasswordLength || len(password) > MaxPasswordLength {
-		return 0, fmt.Errorf("password must be between %d and %d characters", MinPasswordLength, MaxPasswordLength)
-	}
-
 	hashedPassword, err := hashPassword(password)
 	password = "" // Overwrite password to avoid accidental usage
 	if err != nil {
@@ -176,9 +166,6 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 	}
 	var email = sql.NullString{Valid: false}
 	if options.email != nil {
-		if !isValidEmail(*options.email) {
-			return 0, errors.New("invalid email address")
-		}
 		email = sql.NullString{String: *options.email, Valid: true}
 	}
 
@@ -493,10 +480,6 @@ func (m *UserModel) UpdateEmail(playerID int64, newEmail string) error {
 	 WHERE player_id = ?
 	`
 
-	if !isValidEmail(newEmail) {
-		return errors.New("invalid email address")
-	}
-
 	updateEmail := sql.NullString{
 		String: newEmail,
 		Valid:  newEmail != "",
@@ -511,11 +494,6 @@ func (m *UserModel) UpdatePassword(playerID int64, newPassword string) error {
 	   SET password = ?
 	 WHERE player_id = ?
 	`
-
-	if newPassword == "" {
-		app.errorLog.Printf("Password not given")
-		return errors.New("password not given")
-	}
 
 	hashedPassword, err := hashPassword(newPassword)
 	newPassword = "" // Overwrite password to avoid accidental usage

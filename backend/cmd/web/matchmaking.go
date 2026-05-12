@@ -54,7 +54,7 @@ func getOrCreateQueue(timeFormatInMilliseconds int64, incrementInMilliseconds in
 
 	queue, ok := queueMap[key]
 	if !ok {
-		app.infoLog.Printf("Creating new queue: %v %v\n", timeFormatInMilliseconds, incrementInMilliseconds)
+		app.logger.Info("creating new queue", "timeFormatInMilliseconds", timeFormatInMilliseconds, "incrementInMilliseconds", incrementInMilliseconds)
 		queue = &QueueData{
 			awaitingRemoval:          make(map[int64]bool),
 			timeFormatInMilliseconds: timeFormatInMilliseconds,
@@ -103,7 +103,7 @@ func removePlayerFromWaitingPool(playerID int64, timeFormatInMilliseconds int64,
 	queueMu.Unlock()
 
 	if !ok {
-		app.errorLog.Printf("Queue not found for time=%v inc=%v\n", timeFormatInMilliseconds, incrementInMilliseconds)
+		app.logger.Error("queue not found", "timeFormatInMilliseconds", timeFormatInMilliseconds, "incrementInMilliseconds", incrementInMilliseconds)
 		return
 	}
 
@@ -148,7 +148,7 @@ func startingMatchHistory(timeFormatInMilliseconds int64) ([]byte, error) {
 
 	jsonStr, err := json.Marshal(startingHistory)
 	if err != nil {
-		app.errorLog.Printf("Error marshalling JSON: %v\n", err)
+		app.logger.Error("json marshalling error", "err", err)
 		return nil, err
 	}
 
@@ -171,7 +171,7 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 	}
 	startingHistory, err := startingMatchHistory(timeFormatInMilliseconds)
 	if err != nil {
-		app.errorLog.Printf("Error creating starting history for new match: %v\n", err)
+		app.logger.Error("error creating starting history for new match", "err", err, "playerOnePlayerID", playerOneData.playerID, "playerTwoPlayerID", playerTwoData.playerID)
 		return 0, err
 	}
 
@@ -189,8 +189,9 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 		WhitePlayerElo:           whitePlayerData.elo,
 		BlackPlayerElo:           blackPlayerData.elo,
 	})
+
 	if err != nil {
-		app.errorLog.Printf("Error inserting new match: %v\n", err)
+		app.logger.Error("error inserting new match", "err", err, "playerOneID", playerOneID, "playerTwoID", playerTwoID)
 		return 0, err
 	}
 
@@ -206,6 +207,8 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 		clients.clients[playerTwoID] = &Client{id: playerTwoID, channel: make(chan string, 1)}
 	}
 	clients.clients[playerTwoID].channel <- fmt.Sprintf("%v,%v,%v", matchID, timeFormatInMilliseconds, incrementInMilliseconds)
+
+	app.logger.Info("creating match", "matchID", matchID, "playerOneID", playerOneID, "playerTwoID", playerTwoID)
 
 	return matchID, nil
 }
@@ -261,16 +264,16 @@ func matchPlayers() {
 			queue.mu.Lock()
 
 			if err != nil {
-				app.errorLog.Println(err)
+				app.logger.Error("error while matching players", "err", err)
 				continue
 			}
 
 			// Re-check in case player left during createMatch
 			if queue.awaitingRemoval[playerOne.playerID] || queue.awaitingRemoval[playerTwo.playerID] {
-				app.errorLog.Printf("Player left queue during match creation, deleting match %v", matchID)
+				app.logger.Warn("player left queue during match creation, deleting match", "matchID", matchID)
 				queue.mu.Unlock()
 				if deleteErr := app.liveMatches.EnQueueReturnDeleteMatch(matchID); deleteErr != nil {
-					app.errorLog.Printf("Failed to delete orphaned match %v: %v", matchID, deleteErr)
+					app.logger.Error("failed to delete orphaned match", "matchID", matchID, "deleteErr", deleteErr)
 				}
 				queue.mu.Lock()
 			}
@@ -295,8 +298,8 @@ func matchPlayers() {
 }
 
 func matchmakingService() {
-	app.infoLog.Printf("Starting matchmakingService")
-	defer app.infoLog.Printf("Ending matchmakingService")
+	app.logger.Info("Starting matchmakingService")
+	defer app.logger.Info("Ending matchmakingService")
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()

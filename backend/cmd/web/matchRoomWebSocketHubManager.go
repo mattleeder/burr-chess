@@ -26,7 +26,7 @@ func (hubManager *MatchRoomHubManager) unregisterHub(matchID int64) {
 	delete(hubManager.hubs, matchID)
 }
 
-func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64) (*MatchRoomHub, error) {
+func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64, app *application) (*MatchRoomHub, error) {
 	// Fast path
 	hubManager.mu.Lock()
 	val, ok := hubManager.hubs[matchID]
@@ -36,7 +36,7 @@ func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64) (*MatchR
 	}
 
 	// Slow path: create hub outside the lock
-	newHub, err := newMatchRoomHub(matchID) // DB call happens here, no lock held
+	newHub, err := newMatchRoomHub(matchID, app) // DB call happens here, no lock held
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +54,10 @@ func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64) (*MatchR
 	return newHub, nil
 }
 
-func (hubManager *MatchRoomHubManager) registerClientToMatchRoomHub(conn *websocket.Conn, matchID int64, playerID *int64) (*MatchRoomHubClient, error) {
-	val, err := hubManager.getHubFromMatchID(matchID)
+func (hubManager *MatchRoomHubManager) registerClientToMatchRoomHub(conn *websocket.Conn, matchID int64, playerID *int64, app *application) (*MatchRoomHubClient, error) {
+	val, err := hubManager.getHubFromMatchID(matchID, app)
 	if err != nil {
-		app.errorLog.Println(err)
+		app.logger.Error("failed to get hub for match", "matchID", matchID, "err", err)
 		return nil, err
 	}
 

@@ -16,6 +16,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const (
+	sseHearbeatTimer = 15 * time.Second
+)
+
 type getChessMoveData struct {
 	Fen   string
 	Piece int
@@ -46,31 +50,43 @@ type updateEmailRequest struct {
 	Email string `json:"email"`
 }
 
+type registerValidationErrors struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	Email    string `json:"email,omitempty"`
+}
+
+type loginValidationErrors struct {
+	Username string `json:"username,omitempty"`
+}
+
+type updateEmailValidationErrors struct {
+	Email string `json:"email,omitempty"`
+}
+
 type updatePasswordRequest struct {
 	CurrentPassword string `json:"currentPassword"`
 	NewPassword     string `json:"newPassword"`
 }
 
 type updatePasswordValidationErrors struct {
-	CurrentPassword string `json:"currentPassword"`
-	NewPassword     string `json:"newPassword"`
+	CurrentPassword string `json:"currentPassword,omitempty"`
+	NewPassword     string `json:"newPassword,omitempty"`
 }
 
-func rootHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Strict-Transport-Security", "max-age=63072000")
 	app.clientError(w, http.StatusNotFound)
 }
 
-func getChessMovesHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) getChessMovesHandler(w http.ResponseWriter, r *http.Request) {
 	var chessMoveData getChessMoveData
 
 	err := json.NewDecoder(r.Body).Decode(&chessMoveData)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
-
-	app.infoLog.Printf("Received body: %+v\n", chessMoveData)
 
 	var currentGameState = chess.BoardFromFEN(chessMoveData.Fen)
 	var moves, captures, triggerPromotion, _ = chess.GetValidMovesForPiece(chessMoveData.Piece, currentGameState)
@@ -78,18 +94,14 @@ func getChessMovesHandler(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, getChessMoveDataJSON{Moves: moves, Captures: captures, TriggerPromotion: triggerPromotion})
 }
 
-func joinQueueHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) joinQueueHandler(w http.ResponseWriter, r *http.Request) {
 	var joinQueue joinQueueRequest
-
-	app.infoLog.Printf("%v\n", r.Body)
 
 	err := json.NewDecoder(r.Body).Decode(&joinQueue)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
-
-	app.infoLog.Printf("Received body: %+v\n", joinQueue)
 
 	// Generate new playerID if it doesnt exist, this is for logged out players
 	if !app.sessionManager.Exists(r.Context(), "playerID") && joinQueue.Action == "join" {
@@ -104,22 +116,22 @@ func joinQueueHandler(w http.ResponseWriter, r *http.Request) {
 
 	isInMatch, err := app.liveMatches.IsPlayerInMatch(playerID)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
 	if isInMatch {
-		app.errorLog.Printf("Already in match, playerID: %v\n", playerID)
+		app.logger.Warn("join queue rejected: player already in match", "playerID", playerID)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	app.infoLog.Printf("Player ID: %v\n", playerID)
-
 	if joinQueue.Action == "join" {
 		addPlayerToWaitingPool(playerID, joinQueue.TimeFormatInMilliseconds, joinQueue.IncrementInMilliseconds)
+		app.logger.Info("player joined queue", "playerID", playerID)
 	} else {
 		removePlayerFromWaitingPool(playerID, joinQueue.TimeFormatInMilliseconds, joinQueue.IncrementInMilliseconds)
+		app.logger.Info("player left queue", "playerID", playerID)
 	}
 }
 
@@ -143,7 +155,7 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	// The heartbeat ticker detects dead clients instead.
 	rc := http.NewResponseController(w)
 	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
@@ -154,26 +166,24 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 
 	cookie, err := r.Cookie("session")
 	if err != nil {
-		http.Error(w, "Missing session cookie", http.StatusUnauthorized)
+		app.clientError(w, http.StatusUnauthorized)
 		return
 	}
-	app.infoLog.Printf("SessionID from cookie: %s\n", cookie.Value)
 
 	ctx, err := app.sessionManager.Load(r.Context(), cookie.Value)
 	if err != nil {
-		http.Error(w, "Failed to load session", http.StatusInternalServerError)
+		app.serverError(w, err)
 		return
 	}
 
 	r = r.WithContext(ctx)
 
 	if !app.sessionManager.Exists(r.Context(), "playerID") {
-		app.serverError(w, errors.New("no playerID in session"), false)
+		app.clientError(w, http.StatusUnauthorized)
 		return
 	}
 
 	var playerID = app.sessionManager.GetInt64(r.Context(), "playerID")
-	app.infoLog.Printf("playerID in session: %v", playerID)
 
 	clients.mu.Lock()
 	_, ok := clients.clients[playerID]
@@ -187,32 +197,29 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 		clients.mu.Lock()
 		delete(clients.clients, playerID)
 		clients.mu.Unlock()
-		app.infoLog.Printf("Closed SSE for playerID: %v\n", playerID)
 	}()
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		app.infoLog.Println("Streaming not supported")
-		app.serverError(w, errors.New("streaming unsupported"), false)
+		app.logger.Error("match found sse handler: streaming not supported")
+		app.serverError(w, errors.New("streaming unsupported"))
 		return
 	}
 
-	heartbeat := time.NewTicker(15 * time.Second)
+	heartbeat := time.NewTicker(sseHearbeatTimer)
 	defer heartbeat.Stop()
 
 	for {
 		select {
 		case message, ok := <-clientChannel:
 			if !ok {
-				app.infoLog.Printf("SSE: Client Channel Closed")
 				return
 			}
-			app.infoLog.Printf("Sending: data: %s\n\n", message)
 
 			// Send the message to the client in SSE format
 			_, err := fmt.Fprintf(w, "data: %s\n\n", message)
 			if err != nil {
-				app.infoLog.Printf("SSE: Client disconnected unexpectedly: %s\n", err)
+				app.logger.Warn("client disconnected from sse unexpectedly", "playerID", playerID, "err", err)
 				return
 			}
 			flusher.Flush()
@@ -220,25 +227,24 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 		case <-heartbeat.C:
 			_, err := fmt.Fprintf(w, ": heartbeat\n\n")
 			if err != nil {
-				app.infoLog.Printf("SSE: Client disconnected during heartbeat: %s\n", err)
+				app.logger.Warn("client disconnected from sse during heartbeat", "playerID", playerID, "err", err)
 				return
 			}
 			flusher.Flush()
 
 		case <-r.Context().Done():
-			app.infoLog.Printf("SSE: Client disconnected: %s\n", r.Context().Err())
 			return
 		}
 	}
 }
 
-func getHighestEloMatchHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) getHighestEloMatchHandler(w http.ResponseWriter, r *http.Request) {
 	matchID, err := app.liveMatches.GetHighestEloMatch()
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNoContent)
 		} else {
-			app.serverError(w, err, true)
+			app.serverError(w, err)
 		}
 		return
 	}
@@ -246,46 +252,61 @@ func getHighestEloMatchHandler(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, getHighestEloMatchResponse{MatchID: matchID})
 }
 
-func registerUserHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
 	var newUser models.NewUserInfo
 
 	err := json.NewDecoder(r.Body).Decode(&newUser)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
 	newUserOptions := models.CreateNewUserOptions(newUser)
 
-	var registerUserValidationErrors models.NewUserInfo
+	var registerUserValidationErrors registerValidationErrors
+	hasErrors := false
 
 	if utf8.RuneCountInString(newUser.Username) < models.MinUsernameLength || utf8.RuneCountInString(newUser.Username) > models.MaxUsernameLength {
 		registerUserValidationErrors.Username = fmt.Sprintf("Username must be between %d and %d characters.", models.MinUsernameLength, models.MaxUsernameLength)
+		hasErrors = true
+	}
+
+	// Use byte count as bcrypt truncates at 72 bytes
+	if len(newUser.Password) < models.MinPasswordLength || len(newUser.Password) > models.MaxPasswordLength {
+		registerUserValidationErrors.Password = fmt.Sprintf("Password must be between %d and %d characters.", models.MinPasswordLength, models.MaxPasswordLength)
+		hasErrors = true
+	}
+
+	if !models.IsValidEmail(newUser.Email) {
+		registerUserValidationErrors.Email = "invalid email address"
+		hasErrors = true
+	}
+
+	playerID, err := app.users.InsertNew(newUser.Username, newUser.Password, &newUserOptions)
+	if err != nil {
+
+		hasErrors = true
+
+		if strings.Contains(err.Error(), models.SqliteUniqueErrSubstr) {
+			registerUserValidationErrors.Username = "Username already exists."
+		} else {
+			app.logger.Error("registration failed", "err", err)
+		}
+
+	}
+
+	if hasErrors {
 		w.WriteHeader(http.StatusBadRequest)
 		app.writeJSON(w, registerUserValidationErrors)
 		return
 	}
 
-	playerID, err := app.users.InsertNew(newUser.Username, newUser.Password, &newUserOptions)
-	if err != nil {
-		app.errorLog.Printf("DB Error: %s\n", err.Error())
-		if strings.Contains(err.Error(), models.SqliteUniqueErrSubstr) {
-			registerUserValidationErrors.Username = "Username already exists."
-		}
-		jsonStr, jsonErr := json.Marshal(registerUserValidationErrors)
-		if jsonErr != nil {
-			app.errorLog.Printf("Error marshalling json: %s\n", jsonErr.Error())
-			app.serverError(w, err, false)
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(jsonStr)
-		}
-		return
-	}
+	app.logger.Info("user registered", "playerID", playerID, "username", newUser.Username)
 
 	err = app.sessionManager.RenewToken(r.Context())
 	if err != nil {
-		app.serverError(w, err, false)
+		app.logger.Error("failed to renew session token", "playerID", playerID)
+		app.serverError(w, err)
 		return
 	}
 
@@ -298,32 +319,27 @@ func registerUserHandler(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, authData{Username: newUser.Username, CsrfToken: csrfToken})
 }
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var loginInfo models.UserLoginInfo
 
 	err := json.NewDecoder(r.Body).Decode(&loginInfo)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
 	playerID, authorized := app.users.Authenticate(loginInfo.Username, loginInfo.Password)
 	if !authorized {
+		app.logger.Info("login failed", "username", loginInfo.Username)
 		w.WriteHeader(http.StatusUnauthorized)
-		var loginValidationErrors models.UserLoginInfo
-		loginValidationErrors.Username = "Username or password invalid."
-		jsonStr, jsonErr := json.Marshal(loginValidationErrors)
-		if jsonErr == nil {
-			w.Write(jsonStr)
-		} else {
-			app.errorLog.Println(jsonErr)
-		}
+		app.writeJSON(w, loginValidationErrors{Username: "Username or password invalid."})
 		return
 	}
 
 	err = app.sessionManager.RenewToken(r.Context())
 	if err != nil {
-		app.serverError(w, err, false)
+		app.logger.Error("failed to renew session token", "playerID", playerID)
+		app.serverError(w, err)
 		return
 	}
 
@@ -332,19 +348,20 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	app.sessionManager.RememberMe(r.Context(), loginInfo.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", loginInfo.Username)
 	app.sessionManager.Put(r.Context(), "playerID", playerID)
+	app.logger.Info("login succeeded", "playerID", playerID, "username", loginInfo.Username)
 	app.writeJSON(w, authData{Username: loginInfo.Username, CsrfToken: csrfToken})
 }
 
-func logoutHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	if !app.sessionManager.Exists(r.Context(), "username") {
-		app.errorLog.Printf("Not logged in\n")
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
 	err := app.sessionManager.RenewToken(r.Context())
 	if err != nil {
-		app.serverError(w, err, false)
+		app.logger.Error("failed to renew session token on logout", "err", err)
+		app.serverError(w, err)
 		return
 	}
 
@@ -352,7 +369,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) validateSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if !app.sessionManager.Exists(r.Context(), "csrfToken") {
 		app.sessionManager.Put(r.Context(), "csrfToken", generateCSRFToken())
 	}
@@ -371,7 +388,7 @@ func validateSessionHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func userSearchHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) userSearchHandler(w http.ResponseWriter, r *http.Request) {
 	searchString := r.URL.Query().Get("search")
 
 	if searchString == "" {
@@ -386,14 +403,14 @@ func userSearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	userList, err := app.users.SearchForUsers(searchString)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
 	app.writeJSON(w, userList)
 }
 
-func getTileInfoHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) getTileInfoHandler(w http.ResponseWriter, r *http.Request) {
 	searchString := r.URL.Query().Get("search")
 
 	if searchString == "" {
@@ -403,14 +420,14 @@ func getTileInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	tileInfo, err := app.users.GetTileInfoFromUsername(searchString)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
 	app.writeJSON(w, tileInfo)
 }
 
-func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
 	filters := models.PastMatchFilters{}
 
 	queryParams := r.URL.Query()
@@ -421,8 +438,6 @@ func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
 	if username != "" {
 		filters.Username = &username
 	}
-
-	app.infoLog.Printf("searchString: %s\n", searchString)
 
 	switch searchString {
 	case "bullet":
@@ -437,15 +452,14 @@ func getPastMatchesListHandler(w http.ResponseWriter, r *http.Request) {
 
 	matchList, err := app.pastMatches.GetPastMatchesWithFormat(filters)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
-	app.infoLog.Printf("%v\n", matchList)
 
 	app.writeJSON(w, matchList)
 }
 
-func getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	playerID, ok := app.sessionPlayerID(w, r)
 	if !ok {
 		return
@@ -453,39 +467,50 @@ func getUserAccountSettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 	accountSettings, err := app.users.GetUserAccountSettings(playerID)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
 	app.writeJSON(w, accountSettings)
 }
 
-func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 	playerID, ok := app.sessionPlayerID(w, r)
 	if !ok {
 		return
 	}
 
 	var updateEmailData updateEmailRequest
-
-	app.infoLog.Printf("%v\n", r.Body)
+	var updateEmailValidationErrors updateEmailValidationErrors
+	hasErrors := false
 
 	err := json.NewDecoder(r.Body).Decode(&updateEmailData)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	if !models.IsValidEmail(updateEmailData.Email) {
+		updateEmailValidationErrors.Email = "invalid email address"
+		hasErrors = true
+	}
+
+	if hasErrors {
+		w.WriteHeader(http.StatusBadRequest)
+		app.writeJSON(w, updateEmailValidationErrors)
 		return
 	}
 
 	err = app.users.UpdateEmail(playerID, updateEmailData.Email)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
 
-func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	playerID, username, ok := app.sessionPlayer(w, r)
 	if !ok {
 		return
@@ -493,11 +518,9 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 	var updatePasswordData updatePasswordRequest
 
-	app.infoLog.Printf("%v\n", r.Body)
-
 	err := json.NewDecoder(r.Body).Decode(&updatePasswordData)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
 
@@ -508,9 +531,15 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(updatePasswordData.NewPassword) < models.MinPasswordLength || len(updatePasswordData.NewPassword) > models.MaxPasswordLength {
+		w.WriteHeader(http.StatusBadRequest)
+		app.writeJSON(w, updatePasswordValidationErrors{NewPassword: fmt.Sprintf("Password must be between %d and %d characters.", models.MinPasswordLength, models.MaxPasswordLength)})
+		return
+	}
+
 	err = app.users.UpdatePassword(playerID, updatePasswordData.NewPassword)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 

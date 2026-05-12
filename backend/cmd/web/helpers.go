@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -31,13 +30,8 @@ var (
 	ErrInvalidValue = errors.New("invalid cookie value")
 )
 
-func (app *application) serverError(w http.ResponseWriter, err error, suppress bool) {
-	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
-	app.errorLog.Println(trace)
-	if !suppress {
-		app.errorLog.Output(2, trace)
-	}
-
+func (app *application) serverError(w http.ResponseWriter, err error) {
+	app.logger.Error("server error", "err", err, "trace", string(debug.Stack()))
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
@@ -50,8 +44,7 @@ func (app *application) notFound(w http.ResponseWriter) {
 }
 
 func (app *application) websocketError(conn *websocket.Conn, err error) {
-	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
-	app.errorLog.Output(2, trace)
+	app.logger.Error("websocket error", "err", err, "trace", string(debug.Stack()))
 	conn.WriteMessage(websocket.CloseMessage, []byte{})
 	conn.Close()
 }
@@ -131,7 +124,7 @@ func generateCSRFToken() string {
 func (app *application) writeJSON(w http.ResponseWriter, data any) {
 	jsonStr, err := json.Marshal(data)
 	if err != nil {
-		app.serverError(w, err, false)
+		app.serverError(w, err)
 		return
 	}
 
@@ -165,7 +158,7 @@ func (app *application) withPerfLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		defer func() {
-			app.perfLog.Printf("%s %s took: %s\n", r.Method, r.URL.Path, time.Since(start))
+			app.logger.Info("perf", "method", r.Method, "path", r.URL.Path, "duration", time.Since(start))
 		}()
 		next.ServeHTTP(w, r)
 	})
