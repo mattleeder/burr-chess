@@ -520,8 +520,6 @@ func (hub *MatchRoomHub) handlePlayerEvent(message []byte) {
 
 func (hub *MatchRoomHub) makeNewEventOffer(sender messageIdentifier, event eventType) {
 	hub.app.logger.Info("new event offer", "matchID", hub.matchID, "sender", sender, "event", event)
-	hub.offerActive = &offerInfo{sender, event}
-
 	senderIdx := byte(sender)
 	receiverIdx := opponent(senderIdx)
 
@@ -536,6 +534,7 @@ func (hub *MatchRoomHub) makeNewEventOffer(sender messageIdentifier, event event
 		return
 	}
 
+	hub.offerActive = &offerInfo{sender, event}
 	hub.sendMessageToOnePlayer(jsonStr, messageIdentifier(receiverIdx))
 }
 
