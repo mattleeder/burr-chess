@@ -195,22 +195,28 @@ func createMatch(playerOneData *playerMatchmakingData, playerTwoData *playerMatc
 		return 0, err
 	}
 
-	clients.mu.Lock()
-	defer clients.mu.Unlock()
-
-	if _, ok := clients.clients[playerOneID]; !ok {
-		clients.clients[playerOneID] = &Client{id: playerOneID, channel: make(chan string, 1)}
-	}
-	clients.clients[playerOneID].channel <- fmt.Sprintf("%v,%v,%v", matchID, timeFormatInMilliseconds, incrementInMilliseconds)
-
-	if _, ok := clients.clients[playerTwoID]; !ok {
-		clients.clients[playerTwoID] = &Client{id: playerTwoID, channel: make(chan string, 1)}
-	}
-	clients.clients[playerTwoID].channel <- fmt.Sprintf("%v,%v,%v", matchID, timeFormatInMilliseconds, incrementInMilliseconds)
-
 	app.logger.Info("creating match", "matchID", matchID, "playerOneID", playerOneID, "playerTwoID", playerTwoID)
 
 	return matchID, nil
+}
+
+func notifyMatchFound(playerOneID, playerTwoID, matchID, timeFormatInMilliseconds, incrementInMilliseconds int64) {
+	msg := fmt.Sprintf("%v,%v,%v", matchID, timeFormatInMilliseconds, incrementInMilliseconds)
+
+	clients.mu.Lock()
+	defer clients.mu.Unlock()
+
+	for _, id := range []int64{playerOneID, playerTwoID} {
+		if _, ok := clients.clients[id]; !ok {
+			clients.clients[id] = &Client{id: id, channel: make(chan string, 1)}
+		}
+		// Drain any stale pending notification before sending the new one
+		select {
+		case <-clients.clients[id].channel:
+		default:
+		}
+		clients.clients[id].channel <- msg
+	}
 }
 
 func matchPlayers() {
@@ -275,6 +281,11 @@ func matchPlayers() {
 				if deleteErr := app.liveMatches.EnQueueReturnDeleteMatch(matchID); deleteErr != nil {
 					app.logger.Error("failed to delete orphaned match", "matchID", matchID, "deleteErr", deleteErr)
 				}
+				queue.mu.Lock()
+			} else {
+				// Both players still in queue — notify them now that the match is confirmed
+				queue.mu.Unlock()
+				notifyMatchFound(playerOne.playerID, playerTwo.playerID, matchID, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
 				queue.mu.Lock()
 			}
 

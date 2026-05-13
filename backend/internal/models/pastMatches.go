@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"log/slog"
 )
 
 type PastMatch struct {
@@ -56,21 +57,21 @@ type PastMatchFilters struct {
 }
 
 func (m *PastMatchModel) LogAll() {
-	app.infoLog.Println("Past Matches:")
+	slog.Debug("Past Matches")
 
 	rows, err := QueryWithRetry(m.DB, "select * from past_matches;")
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error querying past_matches", "err", err)
 		return
 	}
 
 	defer rows.Close()
 	for rows.Next() {
-		app.rowsLog.Println(rows)
+		slog.Debug("row", "data", rows)
 	}
 	err = rows.Err()
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error iterating past_matches rows", "err", err)
 	}
 }
 
@@ -107,13 +108,13 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 
 	if filters.TimeFormatLower != nil {
 		sqlStmt += " AND m.time_format_in_milliseconds > ?"
-		app.infoLog.Printf("TimeFormatLower: %v\n", filters.TimeFormatLower)
+		slog.Debug("filter", "TimeFormatLower", filters.TimeFormatLower)
 		args = append(args, filters.TimeFormatLower)
 	}
 
 	if filters.TimeFormatUpper != nil {
 		sqlStmt += " AND m.time_format_in_milliseconds <= ?"
-		app.infoLog.Printf("TimeFormatUpper: %v\n", filters.TimeFormatUpper)
+		slog.Debug("filter", "TimeFormatUpper", filters.TimeFormatUpper)
 		args = append(args, filters.TimeFormatUpper)
 	}
 
@@ -124,7 +125,7 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 
 	rows, err := QueryWithRetry(m.DB, sqlStmt, args...)
 	if err != nil {
-		app.errorLog.Printf("Error getting past matches with format: %s\n", err.Error())
+		slog.Error("error getting past matches", "err", err)
 		return nil, err
 	}
 
@@ -154,7 +155,7 @@ func (m *PastMatchModel) GetPastMatchesWithFormat(filters PastMatchFilters) ([]P
 		)
 
 		if err != nil {
-			app.errorLog.Printf("Error in GetPastMatchesWithFormat: %s\n", err.Error())
+			slog.Error("error scanning past match", "err", err)
 			return nil, err
 		}
 

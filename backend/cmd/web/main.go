@@ -76,6 +76,8 @@ func main() {
 		}))
 	}
 
+	slog.SetDefault(logger)
+
 	models.InitDatabase(*dbDriverName, *dbDataSourceName, *resetDB)
 	db, err := sql.Open(*dbDriverName, *dbDataSourceName)
 	if err != nil {

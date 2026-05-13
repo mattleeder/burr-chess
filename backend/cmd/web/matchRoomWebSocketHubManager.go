@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -57,7 +59,11 @@ func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64, app *app
 func (hubManager *MatchRoomHubManager) registerClientToMatchRoomHub(conn *websocket.Conn, matchID int64, playerID *int64, app *application) (*MatchRoomHubClient, error) {
 	val, err := hubManager.getHubFromMatchID(matchID, app)
 	if err != nil {
-		app.logger.Error("failed to get hub for match", "matchID", matchID, "err", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			app.logger.Warn("match not found", "matchID", matchID)
+		} else {
+			app.logger.Error("failed to get hub for match", "matchID", matchID, "err", err)
+		}
 		return nil, err
 	}
 

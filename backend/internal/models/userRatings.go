@@ -3,6 +3,7 @@ package models
 import (
 	"burrchess/internal/chess"
 	"database/sql"
+	"log/slog"
 )
 
 type RatingType int
@@ -62,7 +63,7 @@ func (m *UserRatingsModel) getRating(query UserQuery) (UserRatings, error) {
 	  FROM user_ratings
 	` + query.whereClause
 
-	app.infoLog.Printf("Getting rating for: %v\n", query.arg)
+	slog.Debug("getting rating", "arg", query.arg)
 
 	var playerID int64
 	var username string
@@ -73,7 +74,7 @@ func (m *UserRatingsModel) getRating(query UserQuery) (UserRatings, error) {
 
 	err := QueryRowWithRetry(m.DB, sqlStmt, []any{query.arg}, []any{&playerID, &username, &bulletRating, &blitzRating, &rapidRating, &classicalRating})
 	if err != nil {
-		app.errorLog.Printf("Error getting user_ratings: %s\n", err.Error())
+		slog.Error("error getting user_ratings", "err", err)
 		return UserRatings{}, err
 	}
 	return UserRatings{
@@ -95,7 +96,7 @@ func (m *UserRatingsModel) GetRatingFromPlayerID(playerID int64) (UserRatings, e
 }
 
 func (m *UserRatingsModel) updateRating(query UserQuery, ratingType RatingType, newRating int64) error {
-	app.infoLog.Printf("Updating rating to %v\n", newRating)
+	slog.Debug("updating rating", "newRating", newRating)
 
 	sqlStmt := `
 	UPDATE user_ratings
@@ -116,29 +117,29 @@ func (m *UserRatingsModel) updateRating(query UserQuery, ratingType RatingType, 
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		slog.Error("error starting transaction", "err", err)
 		return err
 	}
 
 	stmt, err := tx.Prepare(sqlStmt)
 	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
+		slog.Error("error preparing statement", "err", err)
 		return err
 	}
 	defer stmt.Close()
 
 	_, err = ExecStatementWithRetry(stmt, newRating, query.arg)
 	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
+		slog.Error("error executing statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("updateRating: unable to rollback: %v", rollbackErr)
+			slog.Error("updateRating: unable to rollback", "err", rollbackErr)
 		}
 		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateRating: %v\n", err)
+		slog.Error("error committing transaction", "err", err)
 		return err
 	}
 
@@ -154,20 +155,20 @@ func (m *UserRatingsModel) UpdateRatingFromPlayerID(playerID int64, ratingType R
 }
 
 func (m *UserRatingsModel) LogAll() {
-	app.infoLog.Println("UserRatings:")
+	slog.Debug("UserRatings")
 
 	rows, err := QueryWithRetry(m.DB, "select * from user_ratings;")
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error querying user_ratings", "err", err)
 		return
 	}
 
 	defer rows.Close()
 	for rows.Next() {
-		app.rowsLog.Printf("%v\n", rows)
+		slog.Debug("row", "data", rows)
 	}
 	err = rows.Err()
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error iterating user_ratings rows", "err", err)
 	}
 }

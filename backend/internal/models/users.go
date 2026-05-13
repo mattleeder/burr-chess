@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -117,29 +118,29 @@ func doesPasswordMatch(plaintextPassword string, hashedPassword string) bool {
 func (m *UserModel) execInTransaction(sqlStmt string, args ...any) error {
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		slog.Error("error starting transaction", "err", err)
 		return err
 	}
 
 	stmt, err := tx.Prepare(sqlStmt)
 	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
+		slog.Error("error preparing statement", "err", err)
 		return err
 	}
 	defer stmt.Close()
 
 	_, err = ExecStatementWithRetry(stmt, args...)
 	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
+		slog.Error("error executing statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("unable to rollback: %v", rollbackErr)
+			slog.Error("unable to rollback", "err", rollbackErr)
 		}
 		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error committing transaction: %v\n", err)
+		slog.Error("error committing transaction", "err", err)
 		return err
 	}
 
@@ -156,12 +157,12 @@ func CreateNewUserOptions(newUser NewUserInfo) (options NewUserOptions) {
 
 func (m *UserModel) InsertNew(username string, password string, options *NewUserOptions) (int64, error) {
 
-	app.infoLog.Printf("Inserting new user: %v\n", username)
+	slog.Info("inserting new user", "username", username)
 
 	hashedPassword, err := hashPassword(password)
 	password = "" // Overwrite password to avoid accidental usage
 	if err != nil {
-		app.errorLog.Printf("Error generating password hash: %v\n", err.Error())
+		slog.Error("error generating password hash", "err", err)
 		return 0, err
 	}
 	var email = sql.NullString{Valid: false}
@@ -179,20 +180,20 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		slog.Error("error starting transaction", "err", err)
 		return 0, err
 	}
 
 	stmtOne, err = tx.Prepare(stepOne)
 	if err != nil {
-		app.errorLog.Printf("Error preparing first statement: %v\n", err)
+		slog.Error("error preparing first statement", "err", err)
 		return 0, err
 	}
 	defer stmtOne.Close()
 
 	stmtTwo, err = tx.Prepare(stepTwo)
 	if err != nil {
-		app.errorLog.Printf("Error preparing second statement: %v\n", err)
+		slog.Error("error preparing second statement", "err", err)
 		return 0, err
 	}
 	defer stmtTwo.Close()
@@ -205,20 +206,20 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 			break
 		}
 		if strings.Contains(err.Error(), playerIDUniqueErrSubstr) {
-			app.infoLog.Printf("player_id collision, retrying\n")
+			slog.Debug("player_id collision, retrying")
 			continue
 		}
 		// Any other error (e.g. username UNIQUE violation) — don't retry
-		app.errorLog.Printf("Error inserting new user: %s\n", err.Error())
+		slog.Error("error inserting new user", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert users: unable to rollback: %s", rollbackErr)
+			slog.Error("insert users: unable to rollback", "err", rollbackErr)
 		}
 		return 0, err
 	}
 	if err != nil {
-		app.errorLog.Printf("Failed to insert user after %d player_id retries\n", maxPlayerIDRetries)
+		slog.Error("failed to insert user after max retries", "maxRetries", maxPlayerIDRetries)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert users: unable to rollback: %s", rollbackErr)
+			slog.Error("insert users: unable to rollback", "err", rollbackErr)
 		}
 		return 0, err
 	}
@@ -226,26 +227,26 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 	_, err = ExecStatementWithRetry(stmtTwo, playerID, username)
 
 	if err != nil {
-		app.errorLog.Printf("Error executing second statement: %v\n", err)
+		slog.Error("error executing second statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert user_ratings: unable to rollback: %v", rollbackErr)
+			slog.Error("insert user_ratings: unable to rollback", "err", rollbackErr)
 		}
 		return 0, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error commiting transaction: %v\n", err)
+		slog.Error("error committing transaction", "err", err)
 		return 0, err
 	}
 
-	app.infoLog.Printf("Inserted player_id: %v\n", playerID)
+	slog.Info("inserted new user", "playerID", playerID)
 
 	return playerID, nil
 }
 
 func (m *UserModel) Authenticate(username string, password string) (playerID int64, authorized bool) {
-	app.infoLog.Printf("Checking password for user: %v\n", username)
+	slog.Debug("checking password", "username", username)
 
 	sqlStmt := `
 	select player_id, password from users where username = ?
@@ -253,7 +254,7 @@ func (m *UserModel) Authenticate(username string, password string) (playerID int
 	var hashedPassword string
 	err := QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&playerID, &hashedPassword})
 	if err != nil {
-		app.errorLog.Printf("Error getting password for user: %v\n", err.Error())
+		slog.Error("error getting password for user", "err", err)
 		return 0, false
 	}
 
@@ -267,21 +268,21 @@ func (m *UserModel) Authenticate(username string, password string) (playerID int
 }
 
 func (m *UserModel) LogAll() {
-	app.infoLog.Println("Users:")
+	slog.Debug("Users")
 
 	rows, err := QueryWithRetry(m.DB, "select * from users;")
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error querying users", "err", err)
 		return
 	}
 
 	defer rows.Close()
 	for rows.Next() {
-		app.rowsLog.Printf("%v\n", rows)
+		slog.Debug("row", "data", rows)
 	}
 	err = rows.Err()
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error iterating users rows", "err", err)
 	}
 }
 
@@ -301,7 +302,7 @@ func (m *UserModel) GetUserClientSide(query UserQuery) (UserClientSide, error) {
 
 	err := QueryRowWithRetry(m.DB, sqlStmt, []any{query.arg}, []any{&playerID, &username, &joinDate, &lastSeen})
 	if err != nil {
-		app.errorLog.Printf("Error getting user: %v\n", err.Error())
+		slog.Error("error getting user", "err", err)
 		return UserClientSide{}, err
 	}
 	return UserClientSide{
@@ -332,7 +333,7 @@ func (m *UserModel) GetUserServerSide(query UserQuery) (UserServerSide, error) {
 
 	err := QueryRowWithRetry(m.DB, sqlStmt, []any{query.arg}, []any{&playerID, &username, &password, &email, &joinDate, &lastSeen})
 	if err != nil {
-		app.errorLog.Printf("Error getting user: %v\n", err.Error())
+		slog.Error("error getting user", "err", err)
 		return UserServerSide{}, err
 	}
 	return UserServerSide{
@@ -373,7 +374,7 @@ func (m *UserModel) SearchForUsers(searchString string) ([]UserClientSide, error
 	escaped := strings.NewReplacer("*", "[*]", "?", "[?]", "[", "[[").Replace(strings.ToUpper(searchString))
 	rows, err := QueryWithRetry(m.DB, sqlStmt, escaped+"*")
 	if err != nil {
-		app.errorLog.Printf("Error in SearchForUsers: %s\n", err.Error())
+		slog.Error("error in SearchForUsers", "err", err)
 		return nil, err
 	}
 
@@ -382,7 +383,7 @@ func (m *UserModel) SearchForUsers(searchString string) ([]UserClientSide, error
 		err := rows.Scan(&playerID, &username, &joinDate, &lastSeen)
 
 		if err != nil {
-			app.errorLog.Printf("Error in SearchForUsers: %s\n", err.Error())
+			slog.Error("error scanning user in SearchForUsers", "err", err)
 			return nil, err
 		}
 
@@ -428,7 +429,7 @@ func (m *UserModel) GetTileInfoFromUsername(username string) (*UserTileInfo, err
 
 	err := QueryRowWithRetry(m.DB, sqlStmt, []any{username}, []any{&playerID, &joinDate, &lastSeen, &bulletRating, &blitzRating, &rapidRating, &classicalRating, &numberOfGames})
 	if err != nil {
-		app.errorLog.Printf("Error in GetTileInfoFromUsername: %s\n", err.Error())
+		slog.Error("error in GetTileInfoFromUsername", "err", err)
 		return nil, err
 	}
 
@@ -463,7 +464,7 @@ func (m *UserModel) GetUserAccountSettings(playerID int64) (AccountSettings, err
 	err = QueryRowWithRetry(m.DB, sqlStmt, []any{playerID}, []any{&email})
 
 	if err != nil {
-		app.errorLog.Printf("Error getting account settings: %v\n", err.Error())
+		slog.Error("error getting account settings", "err", err)
 		return AccountSettings{}, err
 	}
 	var result AccountSettings
@@ -498,7 +499,7 @@ func (m *UserModel) UpdatePassword(playerID int64, newPassword string) error {
 	hashedPassword, err := hashPassword(newPassword)
 	newPassword = "" // Overwrite password to avoid accidental usage
 	if err != nil {
-		app.errorLog.Printf("Error generating password hash: %v\n", err.Error())
+		slog.Error("error generating password hash", "err", err)
 		return err
 	}
 

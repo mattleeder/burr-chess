@@ -81,7 +81,9 @@ type MatchRoomHub struct {
 func newMatchRoomHub(matchID int64, app *application) (*MatchRoomHub, error) {
 	matchState, err := app.liveMatches.EnQueueReturnGetFromMatchID(matchID)
 	if err != nil {
-		app.logger.Error("failed to get match state", "matchID", matchID, "err", err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			app.logger.Error("failed to get match state", "matchID", matchID, "err", err)
+		}
 		return nil, err
 	}
 
@@ -244,19 +246,19 @@ func (hub *MatchRoomHub) updateTimeRemaining() {
 
 // Game outcome
 
-func (hub *MatchRoomHub) getOutcomeInt(gameOverStatus chess.GameOverStatusCode) int {
+func (hub *MatchRoomHub) getOutcome(gameOverStatus chess.GameOverStatusCode) chess.MatchOutcome {
 	switch gameOverStatus {
 	case chess.Checkmate:
 		if hub.turn == chess.Black {
-			return 2
+			return chess.OutcomeBlackWins
 		}
-		return 1
+		return chess.OutcomeWhiteWins
 	case chess.WhiteFlagged, chess.WhiteResigned, chess.WhiteDisconnected:
-		return 2
+		return chess.OutcomeBlackWins
 	case chess.BlackFlagged, chess.BlackResigned, chess.BlackDisconnected:
-		return 1
+		return chess.OutcomeWhiteWins
 	}
-	return 0
+	return chess.OutcomeDraw
 }
 
 // Move handling
@@ -558,7 +560,7 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 	}
 
 	hub.currentGameState = jsonStr
-	outcome := hub.getOutcomeInt(reason)
+	outcome := hub.getOutcome(reason)
 
 	hub.app.logger.Info("match ended",
 		"matchID", hub.matchID,
@@ -570,9 +572,9 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 
 	var whitePoints, blackPoints float64
 	switch outcome {
-	case 1:
+	case chess.OutcomeWhiteWins:
 		whitePoints, blackPoints = 1, 0
-	case 2:
+	case chess.OutcomeBlackWins:
 		whitePoints, blackPoints = 0, 1
 	default:
 		whitePoints, blackPoints = 0.5, 0.5

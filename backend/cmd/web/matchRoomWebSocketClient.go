@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -171,7 +173,12 @@ func (app *application) serveMatchroomWs(w http.ResponseWriter, r *http.Request)
 
 	client, err := matchRoomHubManager.registerClientToMatchRoomHub(conn, matchID, &playerID, app)
 	if err != nil {
-		app.websocketError(conn, err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			app.websocketError(conn, err)
+		} else {
+			conn.WriteMessage(websocket.CloseMessage, []byte{})
+			conn.Close()
+		}
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"burrchess/internal/chess"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
 )
 
@@ -75,11 +76,9 @@ type UpdateMatchParams struct {
 }
 
 func (m *LiveMatchModel) InsertNew(p InsertNewParams) (int64, error) {
-	app.infoLog.Printf("Inserting new match")
+	slog.Info("inserting new match", "timeFormat", p.TimeFormatInMilliseconds, "increment", p.IncrementInMilliseconds)
 	var result sql.Result
 	var err error
-
-	app.infoLog.Printf("Inserting new match with: timeFormat: %v, increment: %v\n", p.TimeFormatInMilliseconds, p.IncrementInMilliseconds)
 
 	sqlStmt := `
 	INSERT INTO live_matches (
@@ -101,13 +100,13 @@ func (m *LiveMatchModel) InsertNew(p InsertNewParams) (int64, error) {
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		slog.Error("error starting transaction", "err", err)
 		return 0, err
 	}
 
 	insertStmt, err := tx.Prepare(sqlStmt)
 	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
+		slog.Error("error preparing statement", "err", err)
 		return 0, err
 	}
 	defer insertStmt.Close()
@@ -120,24 +119,24 @@ func (m *LiveMatchModel) InsertNew(p InsertNewParams) (int64, error) {
 	result, err = ExecStatementWithRetry(insertStmt, whiteID, blackID, p.TimeFormatInMilliseconds, p.IncrementInMilliseconds, p.TimeFormatInMilliseconds, p.TimeFormatInMilliseconds, p.GameHistory, time.Time.UnixMilli(time.Now()), p.AverageElo, p.WhitePlayerElo, p.BlackPlayerElo, time.Time.Unix(time.Now()))
 
 	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
+		slog.Error("error executing statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert live_matches: unable to rollback: %v", rollbackErr)
+			slog.Error("insert live_matches: unable to rollback", "err", rollbackErr)
 		}
 		return 0, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in InsertNew: %v\n", err)
+		slog.Error("error committing transaction", "err", err)
 		return 0, err
 	}
 
 	insertID, err := result.LastInsertId()
 	if err != nil {
-		app.errorLog.Printf("Unsuccesfully inserted new match with err: %s", err.Error())
+		slog.Error("error getting last insert ID", "err", err)
 	} else {
-		app.infoLog.Printf("Succesfully inserted new match with id: %v", insertID)
+		slog.Info("inserted new match", "matchID", insertID)
 	}
 
 	return result.LastInsertId()
@@ -152,7 +151,7 @@ func (m *LiveMatchModel) EnQueueReturnInsertNew(p InsertNewParams) (int64, error
 	}
 	coercedResult, ok := result.(int64)
 	if !ok {
-		app.errorLog.Println("coercedResult is not int64")
+		slog.Error("coercedResult is not int64")
 		return 0, errors.New("coercedResult is not int64")
 	}
 	return coercedResult, nil
@@ -223,7 +222,7 @@ func (m *LiveMatchModel) GetFromMatchID(matchID int64) (*LiveMatchWithUsernames,
 		return nil, err
 	}
 
-	app.infoLog.Printf("%+v", match)
+	slog.Debug("got match from DB", "matchID", match.MatchID)
 
 	return &match, nil
 }
@@ -237,29 +236,30 @@ func (m *LiveMatchModel) EnQueueReturnGetFromMatchID(matchID int64) (*LiveMatchW
 	}
 	matchState, ok := result.(*LiveMatchWithUsernames)
 	if !ok {
-		app.errorLog.Println("matchState is not *models.LiveMatchWithUsernames")
+		slog.Error("matchState is not *models.LiveMatchWithUsernames")
 		return nil, errors.New("matchState is not *models.LiveMatchWithUsernames")
 	}
 	return matchState, nil
 }
 
 func (m *LiveMatchModel) LogAll() {
-	app.infoLog.Println("Live Matches:")
+	slog.Debug("Live Matches")
 
 	rows, err := QueryWithRetry(m.DB, "select * from live_matches;")
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error querying live_matches", "err", err)
 		return
 	}
 
 	defer rows.Close()
-	app.rowsLog.Println(rows.Columns())
+	cols, _ := rows.Columns()
+	slog.Debug("columns", "cols", cols)
 	for rows.Next() {
-		app.rowsLog.Printf("%v\n", rows)
+		slog.Debug("row", "data", rows)
 	}
 	err = rows.Err()
 	if err != nil {
-		app.errorLog.Println(err)
+		slog.Error("error iterating live_matches rows", "err", err)
 	}
 }
 
@@ -285,29 +285,29 @@ func (m *LiveMatchModel) UpdateLiveMatch(p UpdateMatchParams) error {
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		slog.Error("error starting transaction", "err", err)
 		return err
 	}
 
 	updateStmt, err := tx.Prepare(sqlStmt)
 	if err != nil {
-		app.errorLog.Printf("Error preparing statement: %v\n", err)
+		slog.Error("error preparing statement", "err", err)
 		return err
 	}
 	defer updateStmt.Close()
 
 	_, err = ExecStatementWithRetry(updateStmt, p.LastMovePiece, p.LastMoveMove, p.NewFEN, p.WhitePlayerTimeRemainingMilliseconds, p.BlackPlayerTimeRemainingMilliseconds, p.MatchStateHistoryJSON, time.Time.UnixMilli(p.TimeOfLastMove), p.MatchID)
 	if err != nil {
-		app.errorLog.Printf("Error executing statement: %v\n", err)
+		slog.Error("error executing statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("UpdateLiveMatch: unable to rollback: %v", rollbackErr)
+			slog.Error("UpdateLiveMatch: unable to rollback", "err", rollbackErr)
 		}
 		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error commiting transaction in updateLiveMatch: %v\n", err)
+		slog.Error("error committing transaction", "err", err)
 		return err
 	}
 
@@ -326,12 +326,8 @@ func (m *LiveMatchModel) EnQueueUpdateLiveMatch(p UpdateMatchParams) {
 	})
 }
 
-func (m *LiveMatchModel) MoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) error {
-	// outcome int
-	// draw      = 0
-	// whiteWins = 1
-	// blackWins = 2
-	app.infoLog.Printf("Moving %v to past matches", matchID)
+func (m *LiveMatchModel) MoveMatchToPastMatches(matchID int64, result chess.MatchOutcome, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) error {
+	slog.Info("moving match to past matches", "matchID", matchID)
 
 	stepOne := `
 		-- Step 1: Insert row into past_matches table
@@ -387,58 +383,58 @@ func (m *LiveMatchModel) MoveMatchToPastMatches(matchID int64, result int, resul
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("Error starting transaction: %v\n", err)
+		slog.Error("error starting transaction", "err", err)
 		return err
 	}
 
 	stmtOne, err = tx.Prepare(stepOne)
 	if err != nil {
-		app.errorLog.Printf("Error preparing first statement: %v\n", err)
+		slog.Error("error preparing first statement", "err", err)
 		return err
 	}
 	defer stmtOne.Close()
 
 	stmtTwo, err = tx.Prepare(stepTwo)
 	if err != nil {
-		app.errorLog.Printf("Error preparing second statement: %v\n", err)
+		slog.Error("error preparing second statement", "err", err)
 		return err
 	}
 	defer stmtTwo.Close()
 
-	_, err = ExecStatementWithRetry(stmtOne, result, resultReason, whitePlayerEloGain, blackPlayerEloGain, time.Now().Unix(), matchID)
+	_, err = ExecStatementWithRetry(stmtOne, int(result), int(resultReason), whitePlayerEloGain, blackPlayerEloGain, time.Now().Unix(), matchID)
 	if err != nil {
-		app.errorLog.Printf("Error executing first statement: %v\n", err)
+		slog.Error("error executing first statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("insert past_matches: unable to rollback: %v", rollbackErr)
+			slog.Error("insert past_matches: unable to rollback", "err", rollbackErr)
 		}
 		return err
 	}
 
 	_, err = ExecStatementWithRetry(stmtTwo, matchID)
 	if err != nil {
-		app.errorLog.Printf("Error executing second statement: %v\n", err)
+		slog.Error("error executing second statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("delete live_matches: unable to rollback: %v", rollbackErr)
+			slog.Error("delete live_matches: unable to rollback", "err", rollbackErr)
 		}
 		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		app.errorLog.Printf("Error commiting transaction: %v\n", err)
+		slog.Error("error committing transaction", "err", err)
 		return err
 	}
 
 	return err
 }
 
-func (m *LiveMatchModel) EnQueueReturnMoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) error {
+func (m *LiveMatchModel) EnQueueReturnMoveMatchToPastMatches(matchID int64, result chess.MatchOutcome, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) error {
 	return DBTaskQueue.EnQueueReturnErrorOnlyTask(func() error {
 		return m.MoveMatchToPastMatches(matchID, result, resultReason, whitePlayerEloGain, blackPlayerEloGain)
 	})
 }
 
-func (m *LiveMatchModel) EnQueueMoveMatchToPastMatches(matchID int64, result int, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) {
+func (m *LiveMatchModel) EnQueueMoveMatchToPastMatches(matchID int64, result chess.MatchOutcome, resultReason chess.GameOverStatusCode, whitePlayerEloGain int64, blackPlayerEloGain int64) {
 	DBTaskQueue.EnQueueErrorOnlyTask(func() error {
 		return m.MoveMatchToPastMatches(matchID, result, resultReason, whitePlayerEloGain, blackPlayerEloGain)
 	})
@@ -449,22 +445,22 @@ func (m *LiveMatchModel) DeleteMatch(matchID int64) error {
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		app.errorLog.Printf("DeleteMatch: error starting transaction: %v\n", err)
+		slog.Error("DeleteMatch: error starting transaction", "err", err)
 		return err
 	}
 
 	stmt, err := tx.Prepare(sqlStmt)
 	if err != nil {
-		app.errorLog.Printf("DeleteMatch: error preparing statement: %v\n", err)
+		slog.Error("DeleteMatch: error preparing statement", "err", err)
 		return err
 	}
 	defer stmt.Close()
 
 	_, err = ExecStatementWithRetry(stmt, matchID)
 	if err != nil {
-		app.errorLog.Printf("DeleteMatch: error executing statement: %v\n", err)
+		slog.Error("DeleteMatch: error executing statement", "err", err)
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			app.errorLog.Printf("DeleteMatch: unable to rollback: %v", rollbackErr)
+			slog.Error("DeleteMatch: unable to rollback", "err", rollbackErr)
 		}
 		return err
 	}
@@ -492,15 +488,15 @@ func (m *LiveMatchModel) GetHighestEloMatch() (matchID int64, err error) {
 	err = QueryRowWithRetry(m.DB, sqlStmt, []any{}, []any{&matchIDorNull})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			app.errorLog.Println("No matches currently being played")
+			slog.Error("no matches currently being played")
 		} else {
-			app.errorLog.Printf("Error getting matchID: %s", err.Error())
+			slog.Error("error getting matchID", "err", err)
 		}
 		return 0, err
 	}
 
 	if !matchIDorNull.Valid {
-		app.errorLog.Println("MatchID is null")
+		slog.Error("matchID is null")
 		return 0, errors.New("MatchID is null")
 	}
 
@@ -525,12 +521,12 @@ func (m *LiveMatchModel) IsPlayerInMatch(playerID int64) (bool, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		} else {
-			app.errorLog.Printf("Error getting matchID: %s", err.Error())
+			slog.Error("error getting matchID", "err", err)
 			return false, err
 		}
 	}
 
-	app.infoLog.Printf("Player: %v in match %v\n", playerID, matchIDorNull)
+	slog.Debug("player in match", "playerID", playerID, "matchID", matchIDorNull)
 
 	return true, err
 }

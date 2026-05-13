@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -34,7 +35,7 @@ func ExecStatementWithRetry(stmt *sql.Stmt, args ...any) (sql.Result, error) {
 			return result, nil
 			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
 		} else if strings.Contains(err.Error(), SqliteBusyErrSubstr) {
-			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
+			slog.Warn("sqlite busy, retrying", "err", err, "delay", queryRetryDelay)
 			time.Sleep(queryRetryDelay)
 			continue
 		} else {
@@ -56,7 +57,7 @@ func QueryWithRetry(DB *sql.DB, query string, args ...any) (*sql.Rows, error) {
 			return rows, nil
 			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
 		} else if strings.Contains(err.Error(), SqliteBusyErrSubstr) {
-			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
+			slog.Warn("sqlite busy, retrying", "err", err, "delay", queryRetryDelay)
 			time.Sleep(queryRetryDelay)
 			continue
 		} else {
@@ -80,7 +81,7 @@ func QueryRowWithRetry(DB *sql.DB, query string, queryArgs []any, scanArgs []any
 			return err
 			// modernc.org/sqlite does not expose a typed error for SQLITE_BUSY
 		} else if strings.Contains(err.Error(), SqliteBusyErrSubstr) {
-			app.errorLog.Printf("%v, sleeping for %s\n", err.Error(), queryRetryDelay)
+			slog.Warn("sqlite busy, retrying", "err", err, "delay", queryRetryDelay)
 			time.Sleep(queryRetryDelay)
 			continue
 		} else {

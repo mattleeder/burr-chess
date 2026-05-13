@@ -44,6 +44,60 @@ const (
 	GameAborted
 )
 
+type MatchOutcome int
+
+const (
+	OutcomeDraw      MatchOutcome = iota // 0
+	OutcomeWhiteWins                     // 1
+	OutcomeBlackWins                     // 2
+)
+
+func (o MatchOutcome) String() string {
+	switch o {
+	case OutcomeDraw:
+		return "draw"
+	case OutcomeWhiteWins:
+		return "white_wins"
+	case OutcomeBlackWins:
+		return "black_wins"
+	default:
+		return "unknown"
+	}
+}
+
+func (c GameOverStatusCode) String() string {
+	switch c {
+	case Ongoing:
+		return "ongoing"
+	case Stalemate:
+		return "stalemate"
+	case Checkmate:
+		return "checkmate"
+	case ThreefoldRepetition:
+		return "threefold_repetition"
+	case InsufficientMaterial:
+		return "insufficient_material"
+	case WhiteFlagged:
+		return "white_flagged"
+	case BlackFlagged:
+		return "black_flagged"
+	case Draw:
+		return "draw"
+	case WhiteResigned:
+		return "white_resigned"
+	case BlackResigned:
+		return "black_resigned"
+	case WhiteDisconnected:
+		return "white_disconnected"
+	case BlackDisconnected:
+		return "black_disconnected"
+	case GameAborted:
+		return "game_aborted"
+	default:
+		return "unknown"
+	}
+}
+
 var (
 	Bullet    = [2]int64{0, 2 * 60_000}
 	Blitz     = [2]int64{Bullet[1], 5 * 60_000}

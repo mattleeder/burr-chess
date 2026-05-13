@@ -2,19 +2,12 @@ package models
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
-
-type application struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	rowsLog  *log.Logger
-	perfLog  *log.Logger
-}
 
 type task func() (any, error)
 type valueOnlyTask func() any
@@ -96,45 +89,27 @@ func (taskQueue *TaskQueue) Drain() {
 	taskQueue.EnQueueReturn(func() (any, error) { return nil, nil })
 }
 
-var app *application
-
 var DBTaskQueue *TaskQueue
 
 const numdbTaskQueueWorkers = 1
 
 func init() {
-
-	infoLog := log.New(os.Stdout, "DB INFO\t", log.Ldate|log.Ltime)
-	errorLog := log.New(os.Stderr, "DB ERROR\t", log.Ldate|log.Ltime|log.Llongfile)
-	rowsLog := log.New(os.Stdout, "DB ROW\t", 0)
-	perfLog := log.New(os.Stdout, "DB PERF\t", log.Lshortfile)
-
-	app = &application{
-		errorLog: errorLog,
-		infoLog:  infoLog,
-		rowsLog:  rowsLog,
-		perfLog:  perfLog,
-	}
-
 	DBTaskQueue = &TaskQueue{tasks: make(chan Task, 10)}
-
-	for i := range numdbTaskQueueWorkers {
-		app.infoLog.Printf("Starting DB Task Queue Worker Number %v\n", i)
+	for range numdbTaskQueueWorkers {
 		go DBTaskQueue.runWorker()
 	}
-
-	app.infoLog.Println("EXITING MODELS INIT")
 }
 
 func InitDatabase(driverName string, dataSourceName string, reset bool) {
 	if reset {
-		app.infoLog.Println("--reset-db flag set: dropping and recreating database")
+		slog.Info("--reset-db flag set: dropping and recreating database")
 		os.Remove("./chess_site.db")
 	}
 
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
-		app.errorLog.Fatal(err)
+		slog.Error("failed to open database", "err", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -148,20 +123,23 @@ func InitDatabase(driverName string, dataSourceName string, reset bool) {
 		`
 		_, err = db.Exec(dropStmt)
 		if err != nil {
-			app.errorLog.Fatalf("reset: drop tables: %q\n", err)
+			slog.Error("reset: drop tables", "err", err)
+			os.Exit(1)
 		}
 	}
 
 	schemaPath := filepath.Join("internal", "models", "schema.sql")
 	c, ioErr := os.ReadFile(schemaPath)
 	if ioErr != nil {
-		app.errorLog.Fatalf("%s", ioErr.Error())
+		slog.Error("failed to read schema file", "err", ioErr)
+		os.Exit(1)
 	}
 	sqlStmt := string(c)
 
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		app.errorLog.Fatalf("%q: %s\n", err, sqlStmt)
+		slog.Error("failed to execute schema", "err", err)
+		os.Exit(1)
 	}
 
 	var sqliteVersion string
@@ -169,8 +147,9 @@ func InitDatabase(driverName string, dataSourceName string, reset bool) {
 	err = row.Scan(&sqliteVersion)
 
 	if err != nil {
-		app.errorLog.Fatalf("%q: %s\n", err, "SELECT sqlite_version();")
+		slog.Error("failed to query sqlite version", "err", err)
+		os.Exit(1)
 	}
 
-	app.infoLog.Printf("SQLITE VERSION: %v", sqliteVersion)
+	slog.Info("database initialized", "sqliteVersion", sqliteVersion)
 }
