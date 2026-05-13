@@ -308,6 +308,11 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
       }
       webSocket.current.onerror = (event) => console.error(event)
       webSocket.current.onclose = () => {
+        const resolve = pendingMovesResolve.current
+        if (resolve) {
+          pendingMovesResolve.current = null
+          resolve({ moves: [], captures: [], triggerPromotion: false })
+        }
         if (cancelled) return
         if (attempts >= 5) {
           setWsConnectionFailed(true)
