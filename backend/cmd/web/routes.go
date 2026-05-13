@@ -74,7 +74,7 @@ func (app *application) routes() http.Handler {
 	mux.Handle("GET /getTileInfo", app.withLogSecureCorsChain(app.getTileInfoHandler))
 	mux.Handle("GET /getPastMatches", app.withLogSecureCorsChain(app.getPastMatchesListHandler))
 
-	mux.Handle("/listenformatch", app.withPerfLog(app.logRequest(app.recoverPanic(app.corsHeaders(app.rateLimit(secureHeaders(http.HandlerFunc(app.matchFoundSSEHandler))))))))
+	mux.Handle("/listenformatch", app.withLogSessionSecureCorsChain(app.matchFoundSSEHandler))
 
 	// Add the pprof routes (localhost only)
 	mux.Handle("/debug/pprof/", requireLocalhost(http.HandlerFunc(pprof.Index)))

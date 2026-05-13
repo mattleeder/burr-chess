@@ -238,6 +238,9 @@ func (hub *MatchRoomHub) updateTimeRemaining() {
 	idx := byte(hub.turn)
 	hub.players[idx].timeRemaining -= time.Since(hub.timeOfLastMove)
 	hub.players[idx].timeRemaining += hub.increment
+	if hub.players[idx].timeRemaining < 0 {
+		hub.players[idx].timeRemaining = 0
+	}
 }
 
 // Game outcome
@@ -346,9 +349,9 @@ func (hub *MatchRoomHub) getCurrentMatchStateForNewConnection(playerIdentifier m
 		latest := &gameState.Body.MatchStateHistory[len(gameState.Body.MatchStateHistory)-1]
 		elapsed := time.Since(hub.timeOfLastMove).Milliseconds()
 		if hub.turn == playerTurn(WhiteTurn) {
-			latest.WhitePlayerTimeRemainingMilliseconds -= elapsed
+			latest.WhitePlayerTimeRemainingMilliseconds = max(latest.WhitePlayerTimeRemainingMilliseconds-elapsed, 0)
 		} else {
-			latest.BlackPlayerTimeRemainingMilliseconds -= elapsed
+			latest.BlackPlayerTimeRemainingMilliseconds = max(latest.BlackPlayerTimeRemainingMilliseconds-elapsed, 0)
 		}
 	}
 
@@ -413,6 +416,10 @@ func (hub *MatchRoomHub) getMessageType(message []byte) clientMessageType {
 }
 
 func (hub *MatchRoomHub) handleMessage(message []byte) {
+	if len(message) < 2 {
+		hub.app.logger.Warn("message too short", "matchID", hub.matchID, "len", len(message))
+		return
+	}
 	switch hub.getMessageType(message) {
 	case postMove:
 		if hub.gameEnded {
@@ -448,6 +455,7 @@ func (hub *MatchRoomHub) sendEmptyMovesResponse(sender messageIdentifier) {
 	response := onGetMovesResponse{MessageType: onGetMoves}
 	jsonStr, err := json.Marshal(response)
 	if err != nil {
+		hub.app.logger.Error("failed to marshal empty moves response", "matchID", hub.matchID, "err", err)
 		return
 	}
 	hub.sendMessageToOnePlayer(jsonStr, sender)

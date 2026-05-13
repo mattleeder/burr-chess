@@ -95,6 +95,7 @@ func (c *MatchRoomHubClient) readPump() {
 		}
 
 		if !c.limiter.Allow() {
+			c.hub.app.logger.Warn("WebSocket message rate limited", "matchID", c.hub.matchID, "colour", c.playerIdentifier)
 			continue
 		}
 		sender := []byte{byte(c.playerIdentifier)}
@@ -124,12 +125,18 @@ func (c *MatchRoomHubClient) writePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			if _, err := w.Write(message); err != nil {
+				return
+			}
 
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write(newline)
-				w.Write(<-c.send)
+				if _, err := w.Write(newline); err != nil {
+					return
+				}
+				if _, err := w.Write(<-c.send); err != nil {
+					return
+				}
 			}
 
 			if err := w.Close(); err != nil {

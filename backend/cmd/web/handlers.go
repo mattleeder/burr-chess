@@ -140,29 +140,13 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	cookie, err := r.Cookie("session")
-	if err != nil {
-		app.clientError(w, http.StatusUnauthorized)
+	playerID, ok := app.sessionPlayerID(w, r)
+	if !ok {
 		return
 	}
-
-	ctx, err := app.sessionManager.Load(r.Context(), cookie.Value)
-	if err != nil {
-		app.serverError(w, err)
-		return
-	}
-
-	r = r.WithContext(ctx)
-
-	if !app.sessionManager.Exists(r.Context(), "playerID") {
-		app.clientError(w, http.StatusUnauthorized)
-		return
-	}
-
-	var playerID = app.sessionManager.GetInt64(r.Context(), "playerID")
 
 	clients.mu.Lock()
-	_, ok := clients.clients[playerID]
+	_, ok = clients.clients[playerID]
 	if !ok {
 		clients.clients[playerID] = &Client{id: playerID, channel: make(chan string, 1)}
 	}
