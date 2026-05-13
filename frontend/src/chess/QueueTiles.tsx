@@ -252,7 +252,7 @@ export function QueueTiles() {
   return (
     <>
       <div><span className="queueTilesTitle">Select Time Format</span></div>
-      {error && <div style={{ color: "#e74c3c", textAlign: "center", marginBottom: "8px" }}>{error}</div>}
+      {error && <div style={{ color: "var(--color-error)", textAlign: "center", marginBottom: "8px" }}>{error}</div>}
       <div className="queueTilesContainer">
         <QueueButton queueState={queueState} nameOfQueue="1 + 0" queueType="Bullet"/>
         <QueueButton queueState={queueState} nameOfQueue="2 + 1" queueType="Bullet"/>

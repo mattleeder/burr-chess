@@ -420,7 +420,7 @@ function CountdownTimer({ countdownTimerMilliseconds, paused, className } : { co
   }, [paused, countdownTimerMilliseconds])
   
   return (
-    <div className={className} style={{backgroundColor: `${paused ? "#262421" : "#394823"}`}}>
+    <div className={className} style={{backgroundColor: paused ? "var(--color-clock-paused)" : "var(--color-clock-active)"}}>
       {formatDuration(remainingTime)}
     </div>
   )

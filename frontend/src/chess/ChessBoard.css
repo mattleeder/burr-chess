@@ -170,10 +170,10 @@
 .last-move {
   position: absolute;
   margin: 0 auto;
-  background-color: #829769;
+  background-color: var(--color-highlight-move);
   opacity: 0.7;
 }
 
 .promotion {
-  background-color: #ffffff;
+  background-color: var(--color-promotion-bg);
 }
