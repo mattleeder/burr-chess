@@ -86,6 +86,10 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
 
   eventSource.current.onmessage = (event) => {
     const splitData = event.data.split(",")
+    if (splitData.length < 3) {
+      console.error("SSE: malformed match data", event.data)
+      return
+    }
     const matchRoom = splitData[0]
     const timeFormatInMilliseconds = splitData[1]
     const incrementInMilliseconds = splitData[2]
