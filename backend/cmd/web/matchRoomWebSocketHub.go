@@ -26,7 +26,6 @@ type playerState struct {
 	username       sql.NullString
 	timeRemaining  time.Duration
 	connected      bool
-	timeout        <-chan time.Time
 	timeoutTimer   *time.Timer
 	timeoutStarted time.Time
 	elo            int64
@@ -67,9 +66,6 @@ type MatchRoomHub struct {
 	timeFormatInMilliseconds int64
 	increment                time.Duration
 	fenFreqMap               map[string]int
-
-	// opponentCanClaim[i] means player i can claim their opponent disconnected
-	opponentCanClaim [2]bool
 
 	offerActive           *offerInfo
 	gameEnded             bool
@@ -558,14 +554,14 @@ func (hub *MatchRoomHub) oneSidedEvent(sender messageIdentifier, event eventType
 		hub.sendMessageToAllClients(hub.currentGameState)
 	case disconnect:
 		opp := opponent(senderIdx)
-		timeoutElapsed := !hub.players[opp].connected &&
-			!hub.players[opp].timeoutStarted.IsZero() &&
-			time.Since(hub.players[opp].timeoutStarted) >= pingTimeout
-		if hub.opponentCanClaim[senderIdx] || timeoutElapsed {
-			disconnectCodes := [2]chess.GameOverStatusCode{chess.BlackDisconnected, chess.WhiteDisconnected}
-			hub.endGame(disconnectCodes[senderIdx])
-			hub.sendMessageToAllClients(hub.currentGameState)
+		if hub.players[opp].connected ||
+			hub.players[opp].timeoutStarted.IsZero() ||
+			time.Since(hub.players[opp].timeoutStarted) < pingTimeout {
+			return
 		}
+		disconnectCodes := [2]chess.GameOverStatusCode{chess.BlackDisconnected, chess.WhiteDisconnected}
+		hub.endGame(disconnectCodes[senderIdx])
+		hub.sendMessageToAllClients(hub.currentGameState)
 	}
 }
 
@@ -688,13 +684,10 @@ func (hub *MatchRoomHub) setConnected(client *MatchRoomHubClient) {
 		return
 	}
 	hub.players[idx].connected = true
-	hub.opponentCanClaim[opponent(idx)] = false
 	if hub.players[idx].timeoutTimer != nil {
 		hub.players[idx].timeoutTimer.Stop()
 		hub.players[idx].timeoutTimer = nil
 	}
-	hub.players[idx].timeout = nil
-
 	pingMessage, err := hub.pingStatusMessage(colorName(idx), true, 0)
 	if err != nil {
 		hub.app.logger.Error("failed to generate connected ping message", "matchID", hub.matchID, "err", err)
@@ -711,7 +704,6 @@ func (hub *MatchRoomHub) setDisconnected(client *MatchRoomHubClient) {
 	hub.players[idx].connected = false
 	if !hub.gameEnded {
 		hub.players[idx].timeoutTimer = time.NewTimer(pingTimeout)
-		hub.players[idx].timeout = hub.players[idx].timeoutTimer.C
 		hub.players[idx].timeoutStarted = time.Now()
 	}
 
@@ -759,12 +751,6 @@ func (hub *MatchRoomHub) run() {
 				continue
 			}
 			hub.sendMessageToAllClients(hub.currentGameState)
-
-		case <-hub.players[WhitePlayer].timeout:
-			hub.opponentCanClaim[BlackPlayer] = true
-
-		case <-hub.players[BlackPlayer].timeout:
-			hub.opponentCanClaim[WhitePlayer] = true
 
 		case message := <-hub.broadcast:
 			hub.handleMessage(message)
