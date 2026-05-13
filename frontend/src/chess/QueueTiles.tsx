@@ -17,6 +17,8 @@ interface QueueState {
     setInQueue: React.Dispatch<React.SetStateAction<boolean>>,
     queueName: string,
     setQueueName:  React.Dispatch<React.SetStateAction<string>>,
+    error: string,
+    setError: React.Dispatch<React.SetStateAction<string>>,
     eventSource: React.RefObject<EventSource | null>,
     matchFoundState: React.RefObject<MatchFoundState | null>,
     navigate: NavigateFunction,
@@ -56,7 +58,7 @@ addQueueObject(10, 0)
 addQueueObject(10, 5)
 addQueueObject(15, 10)
 
-async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<MatchFoundState | null>, eventSource: React.RefObject<EventSource | null>, navigate: NavigateFunction, csrfToken: string, onError: () => void) {
+async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<MatchFoundState | null>, eventSource: React.RefObject<EventSource | null>, navigate: NavigateFunction, csrfToken: string, onError: (msg: string) => void) {
   const queueObject = queueObjectsMap.get(queueName)
   if (queueObject === undefined) {
     throw new Error("Queue object not found")
@@ -100,7 +102,7 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
     console.error(event)
     eventSource.current?.close()
     tryLeaveQueue(queueName, eventSource, csrfToken).catch(console.error)
-    onError()
+    onError("Connection to server lost. Please try again.")
   }
 }
 
@@ -128,12 +130,13 @@ async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<Eve
 }
 
 async function toggleQueue({
-  waiting, 
+  waiting,
   setWaiting,
   inQueue,
   setInQueue,
-  queueName, 
-  setQueueName, 
+  queueName,
+  setQueueName,
+  setError,
   eventSource,
   matchFoundState,
   navigate,
@@ -142,8 +145,9 @@ async function toggleQueue({
   if (waiting) {
     return
   }
-  
+
   setWaiting(true)
+  setError("")
   let clickAction
   if (!inQueue) {
     clickAction = ClickAction.joinQueue
@@ -152,7 +156,9 @@ async function toggleQueue({
   } else {
     clickAction = ClickAction.changeQueue
   }
-  
+
+  const onError = (msg: string) => { setInQueue(false); setQueueName(""); setError(msg) }
+
   try {
     switch(clickAction) {
     case ClickAction.leaveQueue:
@@ -163,12 +169,12 @@ async function toggleQueue({
 
     case ClickAction.changeQueue:
       await tryLeaveQueue(queueName, eventSource, csrfToken)
-      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken, () => { setInQueue(false); setQueueName("") })
+      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken, onError)
       setQueueName(newQueueName)
       break
 
     case ClickAction.joinQueue:
-      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken, () => { setInQueue(false); setQueueName("") })
+      await tryJoinQueue(newQueueName, matchFoundState, eventSource, navigate, csrfToken, onError)
       setInQueue(true)
       setQueueName(newQueueName)
     }
@@ -198,6 +204,7 @@ export function QueueTiles() {
   const [waiting, setWaiting] = useState(false)
   const [inQueue, setInQueue] = useState(false)
   const [queueName, setQueueName] = useState("")
+  const [error, setError] = useState("")
   const queueNameRef = useRef(queueName)
   const eventSource = useRef<EventSource>(null)
   const matchFoundState = useRef<MatchFoundState>(null)
@@ -212,6 +219,8 @@ export function QueueTiles() {
     setInQueue,
     queueName,
     setQueueName,
+    error,
+    setError,
     eventSource,
     matchFoundState,
     navigate,
@@ -243,6 +252,7 @@ export function QueueTiles() {
   return (
     <>
       <div><span className="queueTilesTitle">Select Time Format</span></div>
+      {error && <div style={{ color: "#e74c3c", textAlign: "center", marginBottom: "8px" }}>{error}</div>}
       <div className="queueTilesContainer">
         <QueueButton queueState={queueState} nameOfQueue="1 + 0" queueType="Bullet"/>
         <QueueButton queueState={queueState} nameOfQueue="2 + 1" queueType="Bullet"/>

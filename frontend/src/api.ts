@@ -14,7 +14,6 @@ export function apiFetch(input: RequestInfo, csrfToken: string, init?: RequestIn
 }
 
 export const API = {
-  fetchMoves:         `${BASE_URL}/getMoves`,
   joinQueue:          `${BASE_URL}/joinQueue`,
   listenForMatch:     `${BASE_URL}/listenformatch`,
   matchRoom:          `${BASE_URL}/matchroom`,

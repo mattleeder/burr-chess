@@ -408,6 +408,8 @@ func (hub *MatchRoomHub) getMessageType(message []byte) clientMessageType {
 			return postMove
 		}
 		return playerEvent
+	case "getMoves":
+		return getMoves
 	}
 
 	hub.app.logger.Warn("unknown message type", "matchID", hub.matchID, "messageType", msg.MessageType)
@@ -436,9 +438,56 @@ func (hub *MatchRoomHub) handleMessage(message []byte) {
 		}
 		hub.handlePlayerEvent(message)
 
+	case getMoves:
+		hub.handleGetMoves(message)
+
 	default:
 		hub.app.logger.Warn("unrecognized message", "matchID", hub.matchID)
 	}
+}
+
+// Get moves
+
+func (hub *MatchRoomHub) sendEmptyMovesResponse(sender messageIdentifier) {
+	response := onGetMovesResponse{MessageType: onGetMoves}
+	jsonStr, err := json.Marshal(response)
+	if err != nil {
+		return
+	}
+	hub.sendMessageToOnePlayer(jsonStr, sender)
+}
+
+func (hub *MatchRoomHub) handleGetMoves(message []byte) {
+	sender := messageIdentifier(message[0])
+
+	var data getMovesRequest
+	if err := json.Unmarshal(message[1:], &data); err != nil {
+		hub.app.logger.Warn("failed to unmarshal getMoves request", "matchID", hub.matchID, "err", err)
+		hub.sendEmptyMovesResponse(sender)
+		return
+	}
+
+	if data.Body.Piece < 0 || data.Body.Piece > 63 {
+		hub.sendEmptyMovesResponse(sender)
+		return
+	}
+
+	moves, captures, triggerPromotion, _ := chess.GetValidMovesForPiece(data.Body.Piece, chess.BoardFromFEN(hub.currentFEN))
+
+	response := onGetMovesResponse{
+		MessageType:      onGetMoves,
+		Moves:            moves,
+		Captures:         captures,
+		TriggerPromotion: triggerPromotion,
+	}
+
+	jsonStr, err := json.Marshal(response)
+	if err != nil {
+		hub.app.logger.Error("failed to marshal getMoves response", "matchID", hub.matchID, "err", err)
+		return
+	}
+
+	hub.sendMessageToOnePlayer(jsonStr, sender)
 }
 
 // Player events

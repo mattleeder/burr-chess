@@ -59,7 +59,6 @@ func (app *application) routes() http.Handler {
 
 	mux.Handle("GET /health", requireLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })))
 	mux.Handle("/", app.withLogSessionSecureCorsChain(app.rootHandler))
-	mux.Handle("POST /getMoves", app.withLogSessionSecureCorsChain(app.getChessMovesHandler))
 	mux.Handle("POST /joinQueue", app.withLogSessionSecureCorsChain(app.joinQueueHandler))
 	mux.Handle("/matchroom/{matchID}/ws", app.withLogSessionSecureCorsChain(app.serveMatchroomWs))
 	mux.Handle("GET /getHighestEloMatch", app.withLogSessionSecureCorsChain(app.getHighestEloMatchHandler))

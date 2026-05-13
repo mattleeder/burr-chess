@@ -16,6 +16,7 @@ const (
 	opponentEvent    hubMessageType = "opponentEvent"
 	userMessage      hubMessageType = "userMessage"
 	sendPlayerCode   hubMessageType = "sendPlayerCode"
+	onGetMoves       hubMessageType = "onGetMoves"
 )
 
 // Event types for player-to-player offers and actions
@@ -105,6 +106,13 @@ type sendPlayerCodeBody struct {
 	PlayerCode messageIdentifier `json:"playerCode"`
 }
 
+type onGetMovesResponse struct {
+	MessageType      hubMessageType `json:"messageType"`
+	Moves            []int          `json:"moves"`
+	Captures         []int          `json:"captures"`
+	TriggerPromotion bool           `json:"triggerPromotion"`
+}
+
 // Client-to-hub message types
 
 type clientMessageType string
@@ -113,10 +121,15 @@ const (
 	postMove    clientMessageType = "postMove"
 	playerEvent clientMessageType = "playerEvent"
 	chatMessage clientMessageType = "userMessage"
+	getMoves    clientMessageType = "getMoves"
 	unknown     clientMessageType = "unknown"
 )
 
 // Client-to-hub bodies
+
+type getMovesBody struct {
+	Piece int `json:"piece"`
+}
 
 type postMoveBody struct {
 	Piece           int    `json:"piece"`
@@ -133,6 +146,11 @@ type userMessageBody struct {
 }
 
 // Client-to-hub responses
+
+type getMovesRequest struct {
+	MessageType clientMessageType `json:"messageType"`
+	Body        getMovesBody      `json:"body"`
+}
 
 type postMoveResponse struct {
 	MessageType clientMessageType `json:"messageType"`

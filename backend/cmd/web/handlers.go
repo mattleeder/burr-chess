@@ -20,16 +20,6 @@ const (
 	sseHearbeatTimer = 15 * time.Second
 )
 
-type getChessMoveData struct {
-	Fen   string
-	Piece int
-}
-
-type getChessMoveDataJSON struct {
-	Moves            []int `json:"moves"`
-	Captures         []int `json:"captures"`
-	TriggerPromotion bool  `json:"triggerPromotion"`
-}
 
 type joinQueueRequest struct {
 	TimeFormatInMilliseconds int64  `json:"timeFormatInMilliseconds"`
@@ -79,20 +69,6 @@ func (app *application) rootHandler(w http.ResponseWriter, r *http.Request) {
 	app.clientError(w, http.StatusNotFound)
 }
 
-func (app *application) getChessMovesHandler(w http.ResponseWriter, r *http.Request) {
-	var chessMoveData getChessMoveData
-
-	err := json.NewDecoder(r.Body).Decode(&chessMoveData)
-	if err != nil {
-		app.clientError(w, http.StatusBadRequest)
-		return
-	}
-
-	var currentGameState = chess.BoardFromFEN(chessMoveData.Fen)
-	var moves, captures, triggerPromotion, _ = chess.GetValidMovesForPiece(chessMoveData.Piece, currentGameState)
-
-	app.writeJSON(w, getChessMoveDataJSON{Moves: moves, Captures: captures, TriggerPromotion: triggerPromotion})
-}
 
 func (app *application) joinQueueHandler(w http.ResponseWriter, r *http.Request) {
 	var joinQueue joinQueueRequest

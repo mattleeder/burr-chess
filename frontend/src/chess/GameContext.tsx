@@ -59,6 +59,7 @@ export interface gameContext {
   flip: boolean,
   setFlip: Dispatch<React.SetStateAction<boolean>>,
   wsConnectionFailed: boolean,
+  fetchMoves: (piece: number) => Promise<GetMovesResponse>,
 }
 
 export const GameContext = createContext<gameContext | null>(null)
@@ -95,6 +96,12 @@ interface PlayerCodeMessage {
 interface OpponentEventMessage {
   sender: string,
   eventType: string,
+}
+
+export interface GetMovesResponse {
+  moves: number[]
+  captures: number[]
+  triggerPromotion: boolean
 }
 
 interface ChessWebSocketMessage {
@@ -269,6 +276,7 @@ function dispatchWebSocketMessage(data: unknown, dispatch: Dispatch<GameAction>)
 function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
   const webSocket = useRef<WebSocket | null>(null)
   const [wsConnectionFailed, setWsConnectionFailed] = useState(false)
+  const pendingMovesResolve = useRef<((response: GetMovesResponse) => void) | null>(null)
 
   useEffect(() => {
     let attempts = 0
@@ -277,7 +285,27 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
     const connect = () => {
       setWsConnectionFailed(false)
       webSocket.current = new WebSocket(API.matchRoom.replace("https://", "wss://") + "/" + matchID + "/ws")
-      webSocket.current.onmessage = (event) => dispatchWebSocketMessage(event.data, dispatch)
+      webSocket.current.onmessage = (event) => {
+        if (typeof event.data !== "string") return
+        for (const msg of event.data.split("\n")) {
+          try {
+            const parsed = JSON.parse(msg)
+            if (parsed.messageType === "onGetMoves") {
+              const resolve = pendingMovesResolve.current
+              pendingMovesResolve.current = null
+              resolve?.({
+                moves: parsed.moves ?? [],
+                captures: parsed.captures ?? [],
+                triggerPromotion: parsed.triggerPromotion ?? false,
+              })
+            } else {
+              dispatchWebSocketMessage(msg, dispatch)
+            }
+          } catch (e) {
+            console.error("Failed to parse WebSocket message:", msg, e)
+          }
+        }
+      }
       webSocket.current.onerror = (event) => console.error(event)
       webSocket.current.onclose = () => {
         if (cancelled) return
@@ -302,7 +330,18 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
     }
   }, [matchID, dispatch])
 
-  return { webSocket, wsConnectionFailed }
+  const fetchMoves = useCallback((piece: number): Promise<GetMovesResponse> => {
+    return new Promise((resolve) => {
+      if (!webSocket.current || webSocket.current.readyState !== WebSocket.OPEN) {
+        resolve({ moves: [], captures: [], triggerPromotion: false })
+        return
+      }
+      pendingMovesResolve.current = resolve
+      webSocket.current.send(JSON.stringify({ messageType: "getMoves", body: { piece } }))
+    })
+  }, [])
+
+  return { webSocket, wsConnectionFailed, fetchMoves }
 }
 
 
@@ -349,7 +388,7 @@ export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { c
     stateRef.current = state
   })
   const [flip, setFlip] = useState(false)
-  const { webSocket, wsConnectionFailed } = useGameWebSocket(matchID, dispatch)
+  const { webSocket, wsConnectionFailed, fetchMoves } = useGameWebSocket(matchID, dispatch)
 
   useEffect(() => {
     setFlip(state.playerColour === PieceColour.Black)
@@ -397,6 +436,7 @@ export function GameWrapper({ children, matchID, timeFormatInMilliseconds }: { c
       flip,
       setFlip,
       wsConnectionFailed,
+      fetchMoves,
     }}>
       {children}
     </GameContext.Provider>
