@@ -13,6 +13,38 @@ export enum PieceVariant {
     King,
 }
 
+export enum GameOverStatus {
+    Ongoing,
+    Stalemate,
+    Checkmate,
+    ThreefoldRepetition,
+    InsufficientMaterial,
+    WhiteFlagged,
+    BlackFlagged,
+    Draw,
+    WhiteResigned,
+    BlackResigned,
+    WhiteDisconnected,
+    BlackDisconnected,
+    GameAborted,
+}
+
+export const gameOverDisplayNames: Record<GameOverStatus, string> = {
+    [GameOverStatus.Ongoing]: "Ongoing",
+    [GameOverStatus.Stalemate]: "Stalemate",
+    [GameOverStatus.Checkmate]: "Checkmate",
+    [GameOverStatus.ThreefoldRepetition]: "Threefold Repetition",
+    [GameOverStatus.InsufficientMaterial]: "Insufficient Material",
+    [GameOverStatus.WhiteFlagged]: "White Flagged",
+    [GameOverStatus.BlackFlagged]: "Black Flagged",
+    [GameOverStatus.Draw]: "Draw",
+    [GameOverStatus.WhiteResigned]: "White Resigned",
+    [GameOverStatus.BlackResigned]: "Black Resigned",
+    [GameOverStatus.WhiteDisconnected]: "White Disconnected",
+    [GameOverStatus.BlackDisconnected]: "Black Disconnected",
+    [GameOverStatus.GameAborted]: "Game Aborted",
+}
+
 const charToPiece = new Map<string, [PieceColour, PieceVariant]>()
 
 // White

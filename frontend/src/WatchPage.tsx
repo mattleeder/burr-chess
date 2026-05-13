@@ -2,26 +2,11 @@ import React, { useContext, useEffect, useState } from "react";
 import { LoaderCircle, Swords, Flame, Rabbit, TrainFront, Turtle } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { FrozenChessBoard } from "./chess/ChessBoard";
-import { parseGameStateFromFEN } from "./chess/ChessLogic";
+import { parseGameStateFromFEN, GameOverStatus, gameOverDisplayNames } from "./chess/ChessLogic";
 import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from "./PlayerInfoTile";
 import { API } from "./api";
 import "./WatchPage.css";
 
-const resultReasons = [
-  "Ongoing",
-  "Stalemate",
-  "Checkmate",
-  "ThreefoldRepetition",
-  "InsufficientMaterial",
-  "WhiteFlagged",
-  "BlackFlagged",
-  "Draw",
-  "WhiteResigned",
-  "BlackResigned",
-  "WhiteDisconnected",
-  "BlackDisconnected",
-  "GameAborted",
-]
 
 export interface pastMatchData {
   matchID: number
@@ -104,7 +89,7 @@ export function MatchTile({ matchData, idx }: { matchData: pastMatchData, idx: n
     outcome = "Draw"
   }
 
-  outcome += ` by ${resultReasons[matchData.resultReason]}`
+  outcome += ` by ${gameOverDisplayNames[matchData.resultReason as GameOverStatus] ?? "Unknown"}`
 
   const gameState = parseGameStateFromFEN(matchData.finalFEN)
   let liClassname = ""

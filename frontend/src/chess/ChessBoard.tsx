@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useReducer, useRef, useState } from "react";
-import { PieceColour, PieceVariant } from "./ChessLogic";
+import { PieceColour, PieceVariant, GameOverStatus, gameOverDisplayNames } from "./ChessLogic";
 import { GameContext, gameContext } from "./GameContext";
 import "./ChessBoard.css";
 
@@ -405,8 +405,7 @@ function GameOverComponent({ squareWidth }: { squareWidth: number }) {
     return <></>
   }
 
-  const gameOverStatusCodes = ["Ongoing", "Stalemate", "Checkmate", "Threefold Repetition", "Insufficient Material", "White Flagged", "Black Flagged", "Draw", "White Resigned", "Black Resigned", "White Disconnected", "Black Disconnected", "Game Aborted"]
-  const gameOverText = gameOverStatusCodes[game.matchData.gameOverStatus || 0]
+  const gameOverText = gameOverDisplayNames[game.matchData.gameOverStatus as GameOverStatus] ?? "Unknown"
 
   return <div style={{ transform: `translate(${0}px, ${squareWidth * 4}px)`, color: "black" }}>{gameOverText}</div>
 }
