@@ -286,7 +286,12 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	csrfToken := generateCSRFToken()
+	csrfToken, err := generateCSRFToken()
+	if err != nil {
+		app.logger.Error("failed to generate CSRF token during registration", "err", err)
+		app.serverError(w, err)
+		return
+	}
 	app.sessionManager.Put(r.Context(), "csrfToken", csrfToken)
 	app.sessionManager.RememberMe(r.Context(), newUser.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", newUser.Username)
@@ -319,7 +324,12 @@ func (app *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	csrfToken := generateCSRFToken()
+	csrfToken, err := generateCSRFToken()
+	if err != nil {
+		app.logger.Error("failed to generate CSRF token during login", "err", err)
+		app.serverError(w, err)
+		return
+	}
 	app.sessionManager.Put(r.Context(), "csrfToken", csrfToken)
 	app.sessionManager.RememberMe(r.Context(), loginInfo.RememberMe)
 	app.sessionManager.Put(r.Context(), "username", loginInfo.Username)
@@ -347,7 +357,13 @@ func (app *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) validateSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if !app.sessionManager.Exists(r.Context(), "csrfToken") {
-		app.sessionManager.Put(r.Context(), "csrfToken", generateCSRFToken())
+		csrfToken, err := generateCSRFToken()
+		if err != nil {
+			app.logger.Error("failed to generate CSRF token during session validation", "err", err)
+			app.serverError(w, err)
+			return
+		}
+		app.sessionManager.Put(r.Context(), "csrfToken", csrfToken)
 	}
 	csrfToken := app.sessionManager.GetString(r.Context(), "csrfToken")
 

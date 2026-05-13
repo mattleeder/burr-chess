@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -113,12 +114,12 @@ func ReadSigned(r *http.Request, secretKey []byte, name string) (string, error) 
 	return value, nil
 }
 
-func generateCSRFToken() string {
+func generateCSRFToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to generate CSRF token: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 func (app *application) writeJSON(w http.ResponseWriter, data any) {

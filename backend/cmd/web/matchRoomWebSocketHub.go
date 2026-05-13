@@ -342,7 +342,7 @@ func (hub *MatchRoomHub) getCurrentMatchStateForNewConnection(playerIdentifier m
 		return nil, err
 	}
 
-	if hub.isTimerActive {
+	if hub.isTimerActive && len(gameState.Body.MatchStateHistory) > 0 {
 		latest := &gameState.Body.MatchStateHistory[len(gameState.Body.MatchStateHistory)-1]
 		elapsed := time.Since(hub.timeOfLastMove).Milliseconds()
 		if hub.turn == playerTurn(WhiteTurn) {
