@@ -28,7 +28,7 @@ export function MatchRoom() {
   const { matchid } = useParams()
   const location = useLocation();
   const { timeFormatInMilliseconds } = location.state || {};
-  const parsedTimeFormatInMilliseconds = parseInt(timeFormatInMilliseconds)
+  const parsedTimeFormatInMilliseconds = parseInt(timeFormatInMilliseconds) || 0
 
   return (
     <GameWrapper matchID={matchid as string} timeFormatInMilliseconds={parsedTimeFormatInMilliseconds}>
