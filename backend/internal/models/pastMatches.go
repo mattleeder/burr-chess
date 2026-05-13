@@ -17,10 +17,10 @@ type PastMatch struct {
 	GameHistoryJSONString    []byte         `json:"gameHistoryJSONstring"` // []MatchStateHistory{}
 	Result                   int64          `json:"result"`
 	ResultReason             int64          `json:"resultReason"`
-	WhitePlayerElo           float64        `json:"whitePlayerElo"`
-	BlackPlayerElo           float64        `json:"blackPlayerElo"`
-	WhitePlayerEloGain       float64        `json:"whitePlayerEloGain"`
-	BlackPlayerEloGain       float64        `json:"blackPlayerEloGain"`
+	WhitePlayerElo           int64          `json:"whitePlayerElo"`
+	BlackPlayerElo           int64          `json:"blackPlayerElo"`
+	WhitePlayerEloGain       int64          `json:"whitePlayerEloGain"`
+	BlackPlayerEloGain       int64          `json:"blackPlayerEloGain"`
 	AverageElo               float64        `json:"averageElo"`
 	MatchStartTime           int64          `json:"matchStartTime"`
 	MatchEndTime             int64          `json:"matchEndTime"`
@@ -37,10 +37,10 @@ type PastMatchSummary struct {
 	IncrementInMilliseconds  int64          `json:"incrementInMilliseconds"`
 	Result                   int64          `json:"result"`
 	ResultReason             int64          `json:"resultReason"`
-	WhitePlayerElo           float64        `json:"whitePlayerElo"`
-	BlackPlayerElo           float64        `json:"blackPlayerElo"`
-	WhitePlayerEloGain       float64        `json:"whitePlayerEloGain"`
-	BlackPlayerEloGain       float64        `json:"blackPlayerEloGain"`
+	WhitePlayerElo           int64          `json:"whitePlayerElo"`
+	BlackPlayerElo           int64          `json:"blackPlayerElo"`
+	WhitePlayerEloGain       int64          `json:"whitePlayerEloGain"`
+	BlackPlayerEloGain       int64          `json:"blackPlayerEloGain"`
 	AverageElo               float64        `json:"averageElo"`
 	MatchStartTime           int64          `json:"matchStartTime"`
 	MatchEndTime             int64          `json:"matchEndTime"`
