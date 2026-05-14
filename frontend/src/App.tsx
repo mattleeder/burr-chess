@@ -16,6 +16,7 @@ import { AuthProvider } from './auth/AuthContext.tsx';
 import { WatchPage } from './WatchPage.tsx';
 import { AccountPage } from './auth/AccountPage.tsx';
 import { AccountSettingsPage } from './auth/AccountSettings.tsx';
+import { ResetPasswordPage } from './auth/ResetPasswordPage.tsx';
 import { ProtectedRoute } from './auth/ProtectedRoute.tsx';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
               <Route path="/matchroom/:matchid" element={<MatchRoom />} />
               <Route path="/login" element={<LoginPage />}/>
               <Route path="/register" element={<RegisterPage/>}/>
+              <Route path="/resetPassword" element={<ResetPasswordPage/>}/>
               <Route path="/watch" element={<WatchPage />}/>
               <Route path="/user/:username" element={<AccountPage/>}/>
               <Route path="/account/settings" element={<ProtectedRoute element={<AccountSettingsPage/>}/>}/>

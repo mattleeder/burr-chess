@@ -110,6 +110,7 @@ export function NavbarSearch() {
     window.addEventListener("click", handler)
     return () => {
       window.removeEventListener("click", handler)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
 

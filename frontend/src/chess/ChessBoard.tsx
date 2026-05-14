@@ -348,7 +348,10 @@ function LastMoveComponent({ flip, squareWidth, lastMove, showLastMove }: { flip
     if (!showLastMove) return <React.Fragment key={idx} />
     const [row, col] = getRowAndColFromBoardIndex(move, flip)
 
-    // @TODO: sort out lastMove Border radius with flips
+    const topLeft = flip ? 63 : 0
+    const topRight = flip ? 56 : 7
+    const bottomLeft = flip ? 7 : 56
+    const bottomRight = flip ? 0 : 63
     return (
       <div
         key={idx}
@@ -358,10 +361,10 @@ function LastMoveComponent({ flip, squareWidth, lastMove, showLastMove }: { flip
           width: `${squareWidth}px`,
           height: `${squareWidth}px`,
           backgroundSize: `${squareWidth}px`,
-          borderTopLeftRadius: `${idx == 0 ? 4 : 0}px`,
-          borderTopRightRadius: `${idx == 7 ? 4 : 0}px`,
-          borderBottomLeftRadius: `${idx == 56 ? 4 : 0}px`,
-          borderBottomRightRadius: `${idx == 63 ? 4 : 0}px`,
+          borderTopLeftRadius: `${move == topLeft ? 4 : 0}px`,
+          borderTopRightRadius: `${move == topRight ? 4 : 0}px`,
+          borderBottomLeftRadius: `${move == bottomLeft ? 4 : 0}px`,
+          borderBottomRightRadius: `${move == bottomRight ? 4 : 0}px`,
         }}
       />
     )
