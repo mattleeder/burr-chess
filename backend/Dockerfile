@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM dhi.io/golang:1-alpine3.23-dev AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
