@@ -360,7 +360,7 @@ func (hub *MatchRoomHub) getCurrentMatchStateForNewConnection(playerIdentifier m
 	if idx <= BlackPlayer {
 		opp := opponent(idx)
 		if !hub.players[opp].connected && !hub.players[opp].timeoutStarted.IsZero() {
-			millisecondsUntilTimeout = pingTimeout.Milliseconds() - time.Since(hub.players[opp].timeoutStarted).Milliseconds()
+			millisecondsUntilTimeout = max(pingTimeout.Milliseconds()-time.Since(hub.players[opp].timeoutStarted).Milliseconds(), 0)
 		}
 	}
 
