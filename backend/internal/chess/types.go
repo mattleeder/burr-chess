@@ -120,6 +120,9 @@ type square struct {
 	blackAttacking bool
 }
 
+// Board layout: index 0 = a8 (top-left), index 63 = h1 (bottom-right).
+// White pieces start on indices 48-63 (ranks 1-2), Black on 0-15 (ranks 7-8).
+// White pawns promote on indices 0-7 (rank 8), Black on 56-63 (rank 1).
 type gameState struct {
 	board                   [64]square
 	turn                    pieceColour

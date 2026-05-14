@@ -92,6 +92,8 @@ func addPlayerToWaitingPool(playerID int64, timeFormatInMilliseconds int64, incr
 		isMatched:            false,
 	})
 
+	// Track the player for lifecycle management. The value (true/false) indicates
+	// whether removal has been requested; matchPlayers() checks this before matching.
 	queue.awaitingRemoval[playerID] = false
 }
 

@@ -245,6 +245,8 @@ func (hub *MatchRoomHub) updateTimeRemaining() {
 
 // Game outcome
 
+// getOutcome maps a game-over reason to a match result.
+// On checkmate, hub.turn is the side that was just checkmated (the turn changed after the mating move).
 func (hub *MatchRoomHub) getOutcome(gameOverStatus chess.GameOverStatusCode) chess.MatchOutcome {
 	switch gameOverStatus {
 	case chess.Checkmate:
@@ -560,6 +562,8 @@ func (hub *MatchRoomHub) oneSidedEvent(sender messageIdentifier, event eventType
 		hub.endGame(resignCodes[senderIdx])
 		hub.sendMessageToAllClients(hub.currentGameState)
 	case disconnect:
+		// The sender is the player claiming their opponent has timed out from disconnection.
+		// e.g. White (senderIdx=0) sends disconnect -> opponent is Black -> BlackDisconnected.
 		opp := opponent(senderIdx)
 		if hub.players[opp].connected ||
 			hub.players[opp].timeoutStarted.IsZero() ||
@@ -687,7 +691,7 @@ func (hub *MatchRoomHub) pingStatusMessage(playerColour string, isConnected bool
 
 func (hub *MatchRoomHub) setConnected(client *MatchRoomHubClient) {
 	idx := byte(client.playerIdentifier)
-	if idx > BlackPlayer {
+	if idx > BlackPlayer { // Spectators (idx > 1) don't have player state
 		return
 	}
 	hub.players[idx].connected = true
@@ -705,7 +709,7 @@ func (hub *MatchRoomHub) setConnected(client *MatchRoomHubClient) {
 
 func (hub *MatchRoomHub) setDisconnected(client *MatchRoomHubClient) {
 	idx := byte(client.playerIdentifier)
-	if idx > BlackPlayer {
+	if idx > BlackPlayer { // Spectators (idx > 1) don't have player state
 		return
 	}
 	hub.players[idx].connected = false

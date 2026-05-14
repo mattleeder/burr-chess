@@ -74,7 +74,8 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 
 	var notationSuffix = ""
 
-	// Check for promotion
+	// Check for promotion.
+	// White promotes on indices 0-7 (rank 8), Black on 56-63 (rank 1).
 	if newGameState.board[move].piece.variant == Pawn && (move <= 7 || move >= 56) {
 		var promotionColour pieceColour = Black
 		if move <= 7 {
@@ -111,7 +112,9 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 		}
 	}
 
-	// Update castling rights for rook moves/captures
+	// Update castling rights for rook moves/captures.
+	// 0=a8 (black queenside rook), 7=h8 (black kingside rook),
+	// 56=a1 (white queenside rook), 63=h1 (white kingside rook).
 	if move == 0 || piece == 0 {
 		newGameState.blackCanQueenSideCastle = false
 	}
