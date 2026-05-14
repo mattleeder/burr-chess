@@ -130,7 +130,9 @@ func (app *application) writeJSON(w http.ResponseWriter, data any) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonStr)
+	if _, err := w.Write(jsonStr); err != nil {
+		app.logger.Warn("failed to write JSON response", "err", err)
+	}
 }
 
 // sessionPlayerID returns the playerID stored in the session.
