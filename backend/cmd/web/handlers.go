@@ -147,13 +147,16 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	if existing, exists := clients.clients[playerID]; exists {
 		close(existing.channel)
 	}
-	clients.clients[playerID] = &Client{id: playerID, channel: make(chan string, 1)}
-	clientChannel := clients.clients[playerID].channel
+	client := &Client{id: playerID, channel: make(chan string, 1)}
+	clients.clients[playerID] = client
+	clientChannel := client.channel
 	clients.mu.Unlock()
 
 	defer func() {
 		clients.mu.Lock()
-		delete(clients.clients, playerID)
+		if clients.clients[playerID] == client {
+			delete(clients.clients, playerID)
+		}
 		clients.mu.Unlock()
 	}()
 
