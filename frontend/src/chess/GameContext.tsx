@@ -341,6 +341,7 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
         resolve({ moves: [], captures: [], triggerPromotion: false })
         return
       }
+      pendingMovesResolve.current?.({ moves: [], captures: [], triggerPromotion: false })
       pendingMovesResolve.current = resolve
       webSocket.current.send(JSON.stringify({ messageType: "getMoves", body: { piece } }))
     })
