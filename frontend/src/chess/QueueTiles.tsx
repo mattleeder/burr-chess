@@ -209,6 +209,8 @@ export function QueueTiles() {
   const [inQueue, setInQueue] = useState(false)
   const [queueName, setQueueName] = useState("")
   const [error, setError] = useState("")
+  // Refs mirror state so the unmount cleanup can read current values
+  // instead of the stale closure captured at mount time.
   const queueNameRef = useRef(queueName)
   const eventSource = useRef<EventSource>(null)
   const matchFoundState = useRef<MatchFoundState>(null)

@@ -151,6 +151,8 @@ function applyMoveMessage(state: GameState, body: OnMoveMessage): GameState {
   }
   let activeMove = state.matchData.activeMove
 
+  // Only advance the board if the user is viewing the latest move.
+  // If they're browsing history, keep their view without jumping forward.
   if (state.matchData.activeState.FEN === state.matchData.stateHistory.at(-1)?.FEN) {
     activeState = {
       ...activeState,

@@ -258,6 +258,7 @@ function wsPostMove(position: number, piece: number, promotion: string, game: ga
       q: PieceVariant.Queen, n: PieceVariant.Knight,
       r: PieceVariant.Rook,  b: PieceVariant.Bishop,
     }
+    // Board index 0-7 = rank 8 (white promotion), 56-63 = rank 1 (black promotion)
     const colour = position <= 7 ? PieceColour.White : PieceColour.Black
     newBoard[position] = [colour, promotionVariant[promotion] ?? PieceVariant.Queen]
   }
