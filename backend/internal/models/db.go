@@ -23,6 +23,9 @@ type Task struct {
 	channel chan TaskResponse
 }
 
+// TaskQueue serializes database writes through a single worker goroutine to avoid
+// SQLite SQLITE_BUSY contention. Use EnQueue (fire-and-forget) for writes where
+// the caller doesn't need the result, and EnQueueReturn (blocking) when it does.
 type TaskQueue struct {
 	tasks chan Task
 }
