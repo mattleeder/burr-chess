@@ -96,16 +96,7 @@ func addPlayerToWaitingPool(playerID int64, timeFormatInMilliseconds int64, incr
 }
 
 func removePlayerFromWaitingPool(playerID int64, timeFormatInMilliseconds int64, incrementInMilliseconds int64) {
-	key := queueKey{timeFormatInMilliseconds, incrementInMilliseconds}
-
-	queueMu.Lock()
-	queue, ok := queueMap[key]
-	queueMu.Unlock()
-
-	if !ok {
-		app.logger.Error("queue not found", "timeFormatInMilliseconds", timeFormatInMilliseconds, "incrementInMilliseconds", incrementInMilliseconds)
-		return
-	}
+	queue := getOrCreateQueue(timeFormatInMilliseconds, incrementInMilliseconds)
 
 	queue.mu.Lock()
 	defer queue.mu.Unlock()
