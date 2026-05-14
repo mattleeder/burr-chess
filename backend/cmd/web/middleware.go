@@ -159,7 +159,11 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 
 func requireLocalhost(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		if host != "127.0.0.1" && host != "::1" {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -170,7 +174,11 @@ func requireLocalhost(next http.Handler) http.Handler {
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 		val, _ := app.rateLimiters.LoadOrStore("general:"+ip, rate.NewLimiter(rate.Every(time.Second), 10)) // 10 per second
 		if !val.(*rate.Limiter).Allow() {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
@@ -183,7 +191,11 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 // authRateLimit applies a strict per-IP limit suitable for login/register (5 per minute).
 func (app *application) authRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 		val, _ := app.rateLimiters.LoadOrStore("auth:"+ip, rate.NewLimiter(rate.Every(12*time.Second), 5)) // 5 per minute
 		if !val.(*rate.Limiter).Allow() {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)

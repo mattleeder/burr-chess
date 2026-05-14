@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	sseHearbeatTimer = 15 * time.Second
+	sseHeartbeatTimer = 15 * time.Second
 )
 
 
@@ -146,10 +146,10 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	clients.mu.Lock()
-	_, ok = clients.clients[playerID]
-	if !ok {
-		clients.clients[playerID] = &Client{id: playerID, channel: make(chan string, 1)}
+	if existing, exists := clients.clients[playerID]; exists {
+		close(existing.channel)
 	}
+	clients.clients[playerID] = &Client{id: playerID, channel: make(chan string, 1)}
 	clientChannel := clients.clients[playerID].channel
 	clients.mu.Unlock()
 
@@ -166,7 +166,7 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	heartbeat := time.NewTicker(sseHearbeatTimer)
+	heartbeat := time.NewTicker(sseHeartbeatTimer)
 	defer heartbeat.Stop()
 
 	for {

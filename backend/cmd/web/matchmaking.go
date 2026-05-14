@@ -253,6 +253,13 @@ func matchPlayers() {
 			return validMatches[i].score < validMatches[j].score
 		})
 
+		// Collect candidate pairs while holding the lock
+		type matchCandidate struct {
+			playerOne *playerMatchmakingData
+			playerTwo *playerMatchmakingData
+		}
+		var candidates []matchCandidate
+
 		for _, score := range validMatches {
 			playerOne := queue.matchmakingPool[score.playerOneIdx]
 			playerTwo := queue.matchmakingPool[score.playerTwoIdx]
@@ -264,34 +271,37 @@ func matchPlayers() {
 				continue
 			}
 
-			// Unlock before createMatch to avoid holding queue.mu while locking clients.mu
-			queue.mu.Unlock()
-			matchID, err := createMatch(playerOne, playerTwo, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
-			queue.mu.Lock()
+			playerOne.isMatched = true
+			playerTwo.isMatched = true
+			candidates = append(candidates, matchCandidate{playerOne, playerTwo})
+		}
 
+		// Unlock once for all I/O (createMatch + notifyMatchFound)
+		queue.mu.Unlock()
+
+		for _, c := range candidates {
+			matchID, err := createMatch(c.playerOne, c.playerTwo, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
 			if err != nil {
 				app.logger.Error("error while matching players", "err", err)
 				continue
 			}
 
 			// Re-check in case player left during createMatch
-			if queue.awaitingRemoval[playerOne.playerID] || queue.awaitingRemoval[playerTwo.playerID] {
+			queue.mu.Lock()
+			removed := queue.awaitingRemoval[c.playerOne.playerID] || queue.awaitingRemoval[c.playerTwo.playerID]
+			queue.mu.Unlock()
+
+			if removed {
 				app.logger.Warn("player left queue during match creation, deleting match", "matchID", matchID)
-				queue.mu.Unlock()
 				if deleteErr := app.liveMatches.EnQueueReturnDeleteMatch(matchID); deleteErr != nil {
 					app.logger.Error("failed to delete orphaned match", "matchID", matchID, "deleteErr", deleteErr)
 				}
-				queue.mu.Lock()
 			} else {
-				// Both players still in queue — notify them now that the match is confirmed
-				queue.mu.Unlock()
-				notifyMatchFound(playerOne.playerID, playerTwo.playerID, matchID, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
-				queue.mu.Lock()
+				notifyMatchFound(c.playerOne.playerID, c.playerTwo.playerID, matchID, queue.timeFormatInMilliseconds, queue.incrementInMilliseconds)
 			}
-
-			playerOne.isMatched = true
-			playerTwo.isMatched = true
 		}
+
+		queue.mu.Lock()
 
 		// Cleanup matched/removed players, increase threshold for unmatched players
 		for i := len(queue.matchmakingPool) - 1; i >= 0; i-- {

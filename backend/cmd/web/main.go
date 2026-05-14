@@ -60,8 +60,17 @@ func main() {
 	addrFlag := flag.String("addr", addr, "HTTPS network address")
 	dbDataSourceName := flag.String("dsn", dsn, "Database Data Source Name")
 	resetDB := flag.Bool("reset-db", false, "Drop and recreate all database tables (destroys all data)")
+	healthcheck := flag.Bool("healthcheck", false, "Run a health check against the running server and exit")
 
 	flag.Parse()
+
+	if *healthcheck {
+		resp, err := http.Get("http://localhost" + addr + "/health")
+		if err != nil || resp.StatusCode != http.StatusOK {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	var logger *slog.Logger
 

@@ -161,7 +161,7 @@ func (app *application) serveMatchroomWs(w http.ResponseWriter, r *http.Request)
 	}
 
 	matchID, err := strconv.ParseInt(r.PathValue("matchID"), 10, 64)
-	if err != nil {
+	if err != nil || matchID <= 0 {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}

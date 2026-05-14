@@ -9,7 +9,7 @@ services:
     volumes:
       - ./data:/app/data  # persist SQLite db
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      test: ["CMD", "/app/server", "-healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 5
