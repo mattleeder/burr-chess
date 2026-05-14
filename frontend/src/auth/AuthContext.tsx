@@ -63,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [csrfToken, setCsrfToken] = useState("")
 
   async function register(data: RegisterData): Promise<FormResult<RegisterFormValidationErrors>> {
+    if (!csrfToken) return { ok: false }
     const result = await submitFormData<RegisterFormValidationErrors>(API.register, {
       credentials: "include",
       headers: { "X-CSRF-Token": csrfToken },
@@ -85,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function login(data: LoginData): Promise<FormResult<LoginFormValidationErrors>> {
+    if (!csrfToken) return { ok: false }
     const result = await submitFormData<LoginFormValidationErrors>(API.login, {
       credentials: "include",
       headers: { "X-CSRF-Token": csrfToken },

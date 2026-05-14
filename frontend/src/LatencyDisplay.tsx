@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react';
+import { API } from './api';
 import './LatencyDisplay.css';
 
-function fetchUserPing() {
-  return 10
-}
-
-function fetchServerLatency() {
-  return 20
-}
-
 function SVGBars({ numberOfBars } : { numberOfBars: number }) {
-
   const colourArray = ["red", "orange", "green", "green"]
-  const colour = colourArray[Math.max(Math.min(numberOfBars, 1), colourArray.length) - 1]
+  const colour = colourArray[Math.max(Math.min(numberOfBars, colourArray.length), 1) - 1]
   const heightOne = numberOfBars >= 1 ? "25" : "0"
   const heightTwo = numberOfBars >= 2 ? "50" : "0"
   const heightThree = numberOfBars >= 3 ? "75" : "0"
@@ -30,12 +22,12 @@ function SVGBars({ numberOfBars } : { numberOfBars: number }) {
 }
 
 
-function LatencyBars({ userPing, serverLatency }: { userPing: number, serverLatency: number }) {
+function LatencyBars({ ping }: { ping: number }) {
   const pingThresholds = [50, 250, 500]
   let pingLevel = 0
 
-  for (null; pingLevel < pingThresholds.length; pingLevel++) {
-    if (userPing + serverLatency <= pingThresholds[pingLevel]) {
+  for (; pingLevel < pingThresholds.length; pingLevel++) {
+    if (ping <= pingThresholds[pingLevel]) {
       break
     }
   }
@@ -43,31 +35,44 @@ function LatencyBars({ userPing, serverLatency }: { userPing: number, serverLate
   return (
     <SVGBars numberOfBars={4 - pingLevel}/>
   )
-
 }
 
 export function LatencyDisplay() {
-  const [userPing, setUserPing] = useState<number | null>(null)
-  const [serverLatency, setServerLatency] = useState<number | null>(null)
+  const [ping, setPing] = useState<number | null>(null)
 
   useEffect(() => {
-    setUserPing(fetchUserPing())
-    setServerLatency(fetchServerLatency())
+    let cancelled = false
+
+    async function measurePing() {
+      try {
+        const start = performance.now()
+        await fetch(API.validateSession, { method: "POST", credentials: "include" })
+        const elapsed = Math.round(performance.now() - start)
+        if (!cancelled) setPing(elapsed)
+      } catch {
+        if (!cancelled) setPing(null)
+      }
+    }
+
+    measurePing()
+    const interval = setInterval(measurePing, 30_000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [])
 
   return (
     <div className='latencyContainer'>
       <div className='latencyText'>
         <div>
-          Ping: {userPing == null ? "?" : userPing + "ms"}
-        </div>
-        <div>
-          Server: {serverLatency == null ? "?" : serverLatency + "ms"}
+          Ping: {ping == null ? "?" : ping + "ms"}
         </div>
       </div>
 
       <div className='latencyBars'>
-        <LatencyBars userPing={userPing == null ? 0 : userPing} serverLatency={serverLatency == null ? 0 : serverLatency}/>
+        <LatencyBars ping={ping ?? 0}/>
       </div>
     </div>
   )

@@ -23,10 +23,10 @@ function LoginForm() {
     if (loading) return
     setLoading(true)
 
-    const redirectUrl = formData.get("referrer") as string || "/"
+    const redirectUrl = String(formData.get("referrer") || "/")
     const result = await auth.login({
-      username: formData.get("username") as string,
-      password: formData.get("password") as string,
+      username: String(formData.get("username") || ""),
+      password: String(formData.get("password") || ""),
       rememberMe: formData.get("rememberMe") === "true",
     })
 
@@ -65,7 +65,7 @@ function LoginOptions() {
   const referrer = searchParams.get("referrer")
   let registerUrl = "/register"
   if (referrer != null) {
-    registerUrl += `?referrer=${referrer}`
+    registerUrl += `?referrer=${encodeURIComponent(referrer)}`
   }
   return (
     <div>

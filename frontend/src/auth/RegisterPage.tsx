@@ -25,11 +25,11 @@ function RegisterForm() {
     if (loading) return
     setLoading(true)
 
-    const redirectUrl = formData.get("referrer") as string || "/"
+    const redirectUrl = String(formData.get("referrer") || "/")
     const result = await auth.register({
-      username: formData.get("username") as string,
-      password: formData.get("password") as string,
-      email: formData.get("email") as string || undefined,
+      username: String(formData.get("username") || ""),
+      password: String(formData.get("password") || ""),
+      email: String(formData.get("email") || "") || undefined,
       rememberMe: formData.get("rememberMe") === "true",
     })
 
