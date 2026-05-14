@@ -27,3 +27,6 @@ dist-ssr
 *.csr
 *.ext
 *.key
+
+# Hidden folders
+.*/

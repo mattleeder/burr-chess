@@ -47,7 +47,7 @@ func (hubManager *MatchRoomHubManager) getHubFromMatchID(matchID int64, app *app
 	hubManager.mu.Lock()
 	if existing, ok := hubManager.hubs[matchID]; ok {
 		hubManager.mu.Unlock()
-		return existing, nil // use the one that got there first
+		return existing, nil // discard newHub; it has no running goroutine so it's GC'd
 	}
 	hubManager.hubs[matchID] = newHub
 	hubManager.mu.Unlock()

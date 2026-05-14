@@ -9,3 +9,6 @@
 *.csr
 *.ext
 *.key
+
+# Hidden folders
+.*/

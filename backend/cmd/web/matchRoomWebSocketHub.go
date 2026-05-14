@@ -231,6 +231,8 @@ func (hub *MatchRoomHub) changeTurn() {
 	}
 }
 
+// updateTimeRemaining adjusts the clock for the player who just moved.
+// Called before changeTurn(), so hub.turn still refers to the mover.
 func (hub *MatchRoomHub) updateTimeRemaining() {
 	if !hub.isTimerActive {
 		return

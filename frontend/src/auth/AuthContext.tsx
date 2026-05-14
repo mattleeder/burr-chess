@@ -130,6 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           signal: AbortSignal.timeout(5000),
         })
 
+        // 401 returns JSON with csrfToken but no username, so logged-out
+        // users still get a CSRF token for protected requests like joinQueue.
         const data = await response.json()
         setCsrfToken(data.csrfToken)
         if (response.ok) {

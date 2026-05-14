@@ -356,7 +356,22 @@ func (app *application) validateSessionHandler(w http.ResponseWriter, r *http.Re
 		if !app.sessionManager.Exists(r.Context(), "playerID") {
 			app.sessionManager.Put(r.Context(), "playerID", models.GenerateNewPlayerId())
 		}
+		// Return the CSRF token even for logged-out users so they can make
+		// CSRF-protected requests (e.g. joinQueue) without logging in first.
+		jsonStr, err := json.Marshal(authData{CsrfToken: csrfToken})
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
+
+		_, err = w.Write(jsonStr)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+
 		return
 	}
 
