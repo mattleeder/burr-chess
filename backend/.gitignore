@@ -3,3 +3,9 @@
 *.db-wal
 *.exe
 *.env
+
+# Certs
+*.crt
+*.csr
+*.ext
+*.key

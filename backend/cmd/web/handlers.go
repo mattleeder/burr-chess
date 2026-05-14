@@ -20,7 +20,6 @@ const (
 	sseHeartbeatTimer = 15 * time.Second
 )
 
-
 type joinQueueRequest struct {
 	TimeFormatInMilliseconds int64  `json:"timeFormatInMilliseconds"`
 	IncrementInMilliseconds  int64  `json:"incrementInMilliseconds"`
@@ -68,7 +67,6 @@ func (app *application) rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Strict-Transport-Security", "max-age=63072000")
 	app.clientError(w, http.StatusNotFound)
 }
-
 
 func (app *application) joinQueueHandler(w http.ResponseWriter, r *http.Request) {
 	var joinQueue joinQueueRequest
@@ -356,6 +354,7 @@ func (app *application) validateSessionHandler(w http.ResponseWriter, r *http.Re
 			app.sessionManager.Put(r.Context(), "playerID", models.GenerateNewPlayerId())
 		}
 		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 
 	app.writeJSON(w, authData{
