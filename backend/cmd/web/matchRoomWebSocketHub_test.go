@@ -453,3 +453,374 @@ func splitFENKey(fen string) string {
 	}
 	return strings.Join(parts[:4], " ")
 }
+
+// ---------------------------------------------------------------------------
+// Shared helper for getCurrentMatchState / handlePlayerEvent tests
+// ---------------------------------------------------------------------------
+
+// serialiseGameState builds a hub.currentGameState blob from a history slice.
+// Pass nil for an empty history (e.g. game not yet started).
+func serialiseGameState(t *testing.T, history []MatchStateHistory) []byte {
+	t.Helper()
+	b, err := json.Marshal(onMoveResponse{
+		MessageType: onMove,
+		Body: onMoveBody{
+			MatchStateHistory:  history,
+			GameOverStatusCode: chess.Ongoing,
+		},
+	})
+	if err != nil {
+		t.Fatalf("serialiseGameState: %v", err)
+	}
+	return b
+}
+
+// hubForEventTests is minimalHub pre-loaded with a valid currentGameState so
+// that endGame can unmarshal it without error.
+func hubForEventTests(t *testing.T) *MatchRoomHub {
+	t.Helper()
+	hub := minimalHub(t)
+	hub.currentGameState = serialiseGameState(t, nil)
+	return hub
+}
+
+// ---------------------------------------------------------------------------
+// getCurrentMatchStateForNewConnection
+// ---------------------------------------------------------------------------
+
+func TestGetCurrentMatchState_TimerInactive(t *testing.T) {
+	hub := minimalHub(t)
+	hub.isTimerActive = false
+	hub.turn = playerTurn(WhiteTurn)
+	hub.currentGameState = serialiseGameState(t, []MatchStateHistory{
+		{FEN: startingFEN, WhitePlayerTimeRemainingMilliseconds: 300_000},
+	})
+	hub.timeOfLastMove = time.Now().Add(-5 * time.Second)
+
+	resp, err := hub.getCurrentMatchStateForNewConnection(messageIdentifier(WhitePlayer))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out onConnectResponse
+	json.Unmarshal(resp, &out)
+
+	// Timer inactive — white's clock must not be touched.
+	if got := out.Body.MatchStateHistory[0].WhitePlayerTimeRemainingMilliseconds; got != 300_000 {
+		t.Errorf("white time = %d, want 300000 (timer inactive)", got)
+	}
+}
+
+func TestGetCurrentMatchState_TimerActive_DeductsElapsed(t *testing.T) {
+	hub := minimalHub(t)
+	hub.isTimerActive = true
+	hub.turn = playerTurn(WhiteTurn) // white's clock is running
+	hub.currentGameState = serialiseGameState(t, []MatchStateHistory{
+		{FEN: startingFEN, WhitePlayerTimeRemainingMilliseconds: 300_000},
+	})
+	hub.timeOfLastMove = time.Now().Add(-5 * time.Second)
+
+	resp, err := hub.getCurrentMatchStateForNewConnection(messageIdentifier(BlackPlayer))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out onConnectResponse
+	json.Unmarshal(resp, &out)
+
+	white := out.Body.MatchStateHistory[0].WhitePlayerTimeRemainingMilliseconds
+	// Should be ~295 000 ms. Allow a generous 10 s window for test scheduling.
+	if white >= 300_000 {
+		t.Errorf("white time = %d ms, expected a decrease from 300 000", white)
+	}
+	if white < 290_000 {
+		t.Errorf("white time = %d ms, decreased too much (want >= 290 000)", white)
+	}
+}
+
+func TestGetCurrentMatchState_TimerActive_FloorsAtZero(t *testing.T) {
+	hub := minimalHub(t)
+	hub.isTimerActive = true
+	hub.turn = playerTurn(WhiteTurn)
+	hub.currentGameState = serialiseGameState(t, []MatchStateHistory{
+		{FEN: startingFEN, WhitePlayerTimeRemainingMilliseconds: 100},
+	})
+	hub.timeOfLastMove = time.Now().Add(-60 * time.Second) // massive overshoot
+
+	resp, err := hub.getCurrentMatchStateForNewConnection(messageIdentifier(BlackPlayer))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out onConnectResponse
+	json.Unmarshal(resp, &out)
+
+	if got := out.Body.MatchStateHistory[0].WhitePlayerTimeRemainingMilliseconds; got != 0 {
+		t.Errorf("white time = %d, want 0 (floor) after massive overshoot", got)
+	}
+}
+
+func TestGetCurrentMatchState_OpponentDisconnected_ReturnsTimeout(t *testing.T) {
+	hub := minimalHub(t)
+	hub.currentGameState = serialiseGameState(t, nil)
+	// Black just disconnected; timeout clock has just started.
+	hub.players[BlackPlayer].connected = false
+	hub.players[BlackPlayer].timeoutStarted = time.Now()
+
+	resp, err := hub.getCurrentMatchStateForNewConnection(messageIdentifier(WhitePlayer))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out onConnectResponse
+	json.Unmarshal(resp, &out)
+
+	if out.Body.MillisecondsUntilTimeout <= 0 {
+		t.Errorf("millisecondsUntilTimeout = %d, want > 0 when opponent just disconnected",
+			out.Body.MillisecondsUntilTimeout)
+	}
+}
+
+func TestGetCurrentMatchState_SpectatorGetsNoTimeout(t *testing.T) {
+	// Timeout info is only sent to players — spectators should receive 0.
+	hub := minimalHub(t)
+	hub.currentGameState = serialiseGameState(t, nil)
+	hub.players[BlackPlayer].connected = false
+	hub.players[BlackPlayer].timeoutStarted = time.Now()
+
+	resp, err := hub.getCurrentMatchStateForNewConnection(messageIdentifier(Spectator))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out onConnectResponse
+	json.Unmarshal(resp, &out)
+
+	if out.Body.MillisecondsUntilTimeout != 0 {
+		t.Errorf("millisecondsUntilTimeout = %d, want 0 for spectators",
+			out.Body.MillisecondsUntilTimeout)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// handlePlayerEvent
+// ---------------------------------------------------------------------------
+
+func TestHandlePlayerEvent_Resign(t *testing.T) {
+	hub := hubForEventTests(t)
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: resign},
+	})
+
+	hub.handlePlayerEvent(msg)
+
+	if !hub.gameEnded {
+		t.Error("gameEnded should be true after resign")
+	}
+}
+
+func TestHandlePlayerEvent_Abort(t *testing.T) {
+	hub := hubForEventTests(t)
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: abort},
+	})
+
+	hub.handlePlayerEvent(msg)
+
+	if !hub.gameEnded {
+		t.Error("gameEnded should be true after abort")
+	}
+}
+
+func TestHandlePlayerEvent_DrawOffer_SetsOfferActive(t *testing.T) {
+	hub := hubForEventTests(t)
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: draw},
+	})
+
+	hub.handlePlayerEvent(msg)
+
+	if hub.offerActive == nil {
+		t.Fatal("offerActive should be set after draw offer")
+	}
+	if hub.offerActive.event != draw {
+		t.Errorf("offerActive.event = %q, want draw", hub.offerActive.event)
+	}
+	if hub.offerActive.sender != messageIdentifier(WhitePlayer) {
+		t.Errorf("offerActive.sender = %v, want white", hub.offerActive.sender)
+	}
+	if hub.gameEnded {
+		t.Error("game should not end from a draw offer alone")
+	}
+}
+
+func TestHandlePlayerEvent_DrawAccepted_EndsGame(t *testing.T) {
+	hub := hubForEventTests(t)
+	offer := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: draw},
+	})
+	accept := buildMsg(t, BlackPlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: draw},
+	})
+
+	hub.handlePlayerEvent(offer)
+	hub.handlePlayerEvent(accept)
+
+	if !hub.gameEnded {
+		t.Error("gameEnded should be true after draw offer is accepted")
+	}
+}
+
+func TestHandlePlayerEvent_DrawOffer_SameSenderIgnored(t *testing.T) {
+	// Sending the same offer twice from the same player should not accept it.
+	hub := hubForEventTests(t)
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: draw},
+	})
+
+	hub.handlePlayerEvent(msg) // offer
+	hub.handlePlayerEvent(msg) // duplicate from same sender
+
+	if hub.offerActive == nil {
+		t.Fatal("offerActive should still be set")
+	}
+	if hub.gameEnded {
+		t.Error("game should not end from a duplicate offer from the same sender")
+	}
+}
+
+func TestHandlePlayerEvent_ThreefoldRepetition_EndsGame(t *testing.T) {
+	hub := hubForEventTests(t)
+	hub.isThreefoldRepetition = true
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: threefoldRepetition},
+	})
+
+	hub.handlePlayerEvent(msg)
+
+	if !hub.gameEnded {
+		t.Error("gameEnded should be true after threefold claim when position has repeated")
+	}
+}
+
+func TestHandlePlayerEvent_ThreefoldRepetition_NotActive_Ignored(t *testing.T) {
+	// Claiming threefold when the position has not repeated 3 times does nothing.
+	hub := hubForEventTests(t)
+	hub.isThreefoldRepetition = false
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{
+		MessageType: playerEvent,
+		Body:        playerEventBody{EventType: threefoldRepetition},
+	})
+
+	hub.handlePlayerEvent(msg)
+
+	if hub.gameEnded {
+		t.Error("game should not end when threefold claim is made without 3 repetitions")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// setConnected / setDisconnected
+// ---------------------------------------------------------------------------
+
+// fakeClient returns a MatchRoomHubClient with only playerIdentifier set —
+// enough for setConnected/setDisconnected which never touch the WebSocket conn.
+func fakeClient(hub *MatchRoomHub, identifier byte) *MatchRoomHubClient {
+	return &MatchRoomHubClient{
+		hub:              hub,
+		playerIdentifier: messageIdentifier(identifier),
+		send:             make(chan []byte, 1),
+	}
+}
+
+func TestSetConnected_MarksPlayerConnected(t *testing.T) {
+	hub := minimalHub(t)
+	hub.players[WhitePlayer].connected = false
+
+	hub.setConnected(fakeClient(hub, WhitePlayer))
+
+	if !hub.players[WhitePlayer].connected {
+		t.Error("white player should be marked connected")
+	}
+}
+
+func TestSetConnected_ClearsTimeoutTimer(t *testing.T) {
+	hub := minimalHub(t)
+	// Simulate an existing disconnect timeout that should be cancelled on reconnect.
+	hub.players[WhitePlayer].timeoutTimer = time.NewTimer(time.Hour)
+
+	hub.setConnected(fakeClient(hub, WhitePlayer))
+
+	if hub.players[WhitePlayer].timeoutTimer != nil {
+		hub.players[WhitePlayer].timeoutTimer.Stop()
+		t.Error("timeoutTimer should be nil after player reconnects")
+	}
+}
+
+func TestSetConnected_SpectatorIsIgnored(t *testing.T) {
+	hub := minimalHub(t)
+	hub.players[WhitePlayer].connected = false
+	hub.players[BlackPlayer].connected = false
+
+	hub.setConnected(fakeClient(hub, Spectator))
+
+	// Neither player's state should change.
+	if hub.players[WhitePlayer].connected || hub.players[BlackPlayer].connected {
+		t.Error("setConnected with spectator should not modify any player state")
+	}
+}
+
+func TestSetDisconnected_MarksPlayerDisconnected(t *testing.T) {
+	hub := minimalHub(t)
+	hub.players[BlackPlayer].connected = true
+
+	hub.setDisconnected(fakeClient(hub, BlackPlayer))
+
+	if hub.players[BlackPlayer].connected {
+		t.Error("black player should be marked disconnected")
+	}
+	if hub.players[BlackPlayer].timeoutTimer == nil {
+		t.Error("timeoutTimer should be set after disconnect")
+	}
+	hub.players[BlackPlayer].timeoutTimer.Stop()
+
+	if hub.players[BlackPlayer].timeoutStarted.IsZero() {
+		t.Error("timeoutStarted should be recorded after disconnect")
+	}
+}
+
+func TestSetDisconnected_NoTimerWhenGameEnded(t *testing.T) {
+	// After a game ends there is no point timing out a disconnected player.
+	hub := minimalHub(t)
+	hub.gameEnded = true
+	hub.players[WhitePlayer].connected = true
+
+	hub.setDisconnected(fakeClient(hub, WhitePlayer))
+
+	if hub.players[WhitePlayer].connected {
+		t.Error("white player should be marked disconnected")
+	}
+	if hub.players[WhitePlayer].timeoutTimer != nil {
+		hub.players[WhitePlayer].timeoutTimer.Stop()
+		t.Error("timeoutTimer should not be started when game has already ended")
+	}
+}
+
+func TestSetDisconnected_SpectatorIsIgnored(t *testing.T) {
+	hub := minimalHub(t)
+	hub.players[WhitePlayer].connected = true
+	hub.players[BlackPlayer].connected = true
+
+	hub.setDisconnected(fakeClient(hub, Spectator))
+
+	if !hub.players[WhitePlayer].connected || !hub.players[BlackPlayer].connected {
+		t.Error("setDisconnected with spectator should not modify any player state")
+	}
+}
