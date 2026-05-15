@@ -10,7 +10,7 @@ interface QueueObject {
   incrementInMilliseconds: number,
 }
 
-interface QueueState {
+export interface QueueState {
     waiting: boolean,
     setWaiting: React.Dispatch<React.SetStateAction<boolean>>,
     inQueue: boolean,
@@ -37,7 +37,7 @@ enum ClickAction {
   changeQueue,
 }
   
-const queueObjectsMap = new Map<string, QueueObject>()
+export const queueObjectsMap = new Map<string, QueueObject>()
   
 function addQueueObject(timeFormatInMinutes: number, incrementInSeconds: number) {
   queueObjectsMap.set(`${timeFormatInMinutes} + ${incrementInSeconds}`, {
@@ -121,7 +121,7 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
   }
 }
 
-async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<EventSource | null>, csrfToken: string) {
+export async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<EventSource | null>, csrfToken: string) {
   const queueObject = queueObjectsMap.get(queueName)
   if (queueObject === undefined) {
     throw new Error("Queue object not found")
@@ -144,7 +144,7 @@ async function tryLeaveQueue(queueName: string, eventSource: React.RefObject<Eve
   eventSource.current?.close()
 }
 
-async function toggleQueue({
+export async function toggleQueue({
   waiting,
   setWaiting,
   inQueue,
