@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 const ReactCompilerConfig = { /* ... */ };
@@ -15,6 +15,13 @@ export default defineConfig(() => {
         },
       }),
     ],
-    // ...
+    test: {
+      globals: true,
+      environment: 'happy-dom',
+      setupFiles: './src/test/setup.ts',
+      environmentOptions: {
+        happyDom: { url: 'http://localhost' },
+      },
+    },
   };
 });
