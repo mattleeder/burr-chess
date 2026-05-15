@@ -327,7 +327,7 @@ func (m *UserModel) GetUserServerSide(query UserQuery) (UserServerSide, error) {
 	var playerID int64
 	var username string
 	var password string
-	var email string
+	var email sql.NullString
 	var joinDate int64
 	var lastSeen int64
 
@@ -340,7 +340,7 @@ func (m *UserModel) GetUserServerSide(query UserQuery) (UserServerSide, error) {
 		PlayerID: playerID,
 		Username: username,
 		Password: password,
-		Email:    email,
+		Email:    email.String,
 		JoinDate: joinDate,
 		LastSeen: lastSeen,
 	}, nil
