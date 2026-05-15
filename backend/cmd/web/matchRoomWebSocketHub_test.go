@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -238,4 +240,216 @@ func TestChangeTurn_ActivatesTimerOnBlacksFirstMove(t *testing.T) {
 		t.Error("flagTimerHandle should be set after timer activation")
 	}
 	hub.flagTimerHandle.Stop()
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for message-based tests
+// ---------------------------------------------------------------------------
+
+const startingFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+// buildMsg prepends a sender byte to a JSON-marshalled value, mirroring what
+// readPump does before writing to hub.broadcast.
+func buildMsg(t *testing.T, sender byte, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("buildMsg: marshal: %v", err)
+	}
+	return append([]byte{sender}, b...)
+}
+
+// hubForMoveTests returns a hub set up at the start of a game, ready for
+// updateGameStateAfterMove calls. The timer is inactive so no clock arithmetic
+// runs, and the DB task queue writes fail silently (matchID=0, no row).
+func hubForMoveTests(t *testing.T) *MatchRoomHub {
+	t.Helper()
+	hub := minimalHub(t)
+	hub.currentFEN = startingFEN
+	hub.isTimerActive = false
+	hub.turn = playerTurn(WhiteTurn)
+	return hub
+}
+
+// ---------------------------------------------------------------------------
+// getMessageType
+// ---------------------------------------------------------------------------
+
+func TestGetMessageType_PostMove_FromWhite(t *testing.T) {
+	hub := minimalHub(t)
+	msg := buildMsg(t, WhitePlayer, postMoveResponse{MessageType: postMove, Body: postMoveBody{Piece: 52, Move: 36}})
+	if got := hub.getMessageType(msg); got != postMove {
+		t.Errorf("got %q, want postMove", got)
+	}
+}
+
+func TestGetMessageType_PostMove_FromBlack(t *testing.T) {
+	hub := minimalHub(t)
+	msg := buildMsg(t, BlackPlayer, postMoveResponse{MessageType: postMove, Body: postMoveBody{Piece: 52, Move: 36}})
+	if got := hub.getMessageType(msg); got != postMove {
+		t.Errorf("got %q, want postMove", got)
+	}
+}
+
+func TestGetMessageType_PostMove_FromSpectator_IsUnknown(t *testing.T) {
+	// Spectators must not be able to post moves — they are silently rejected.
+	hub := minimalHub(t)
+	msg := buildMsg(t, Spectator, postMoveResponse{MessageType: postMove, Body: postMoveBody{Piece: 52, Move: 36}})
+	if got := hub.getMessageType(msg); got != unknown {
+		t.Errorf("got %q, want unknown (spectator blocked from postMove)", got)
+	}
+}
+
+func TestGetMessageType_PlayerEvent_FromPlayer(t *testing.T) {
+	hub := minimalHub(t)
+	msg := buildMsg(t, WhitePlayer, playerEventResponse{MessageType: playerEvent, Body: playerEventBody{EventType: resign}})
+	if got := hub.getMessageType(msg); got != playerEvent {
+		t.Errorf("got %q, want playerEvent", got)
+	}
+}
+
+func TestGetMessageType_PlayerEvent_FromSpectator_IsUnknown(t *testing.T) {
+	hub := minimalHub(t)
+	msg := buildMsg(t, Spectator, playerEventResponse{MessageType: playerEvent, Body: playerEventBody{EventType: resign}})
+	if got := hub.getMessageType(msg); got != unknown {
+		t.Errorf("got %q, want unknown (spectator blocked from playerEvent)", got)
+	}
+}
+
+func TestGetMessageType_GetMoves_FromSpectator(t *testing.T) {
+	// Spectators are allowed to request legal moves (read-only).
+	hub := minimalHub(t)
+	msg := buildMsg(t, Spectator, getMovesRequest{MessageType: getMoves, Body: getMovesBody{Piece: 52}})
+	if got := hub.getMessageType(msg); got != getMoves {
+		t.Errorf("got %q, want getMoves", got)
+	}
+}
+
+func TestGetMessageType_MalformedJSON_IsUnknown(t *testing.T) {
+	hub := minimalHub(t)
+	msg := append([]byte{WhitePlayer}, []byte("not valid json")...)
+	if got := hub.getMessageType(msg); got != unknown {
+		t.Errorf("got %q, want unknown for malformed JSON", got)
+	}
+}
+
+func TestGetMessageType_UnknownType_IsUnknown(t *testing.T) {
+	hub := minimalHub(t)
+	msg := buildMsg(t, WhitePlayer, map[string]string{"messageType": "someFutureType"})
+	if got := hub.getMessageType(msg); got != unknown {
+		t.Errorf("got %q, want unknown for unrecognised message type", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// updateGameStateAfterMove
+// ---------------------------------------------------------------------------
+
+func TestUpdateGameStateAfterMove_ValidMove(t *testing.T) {
+	hub := hubForMoveTests(t)
+
+	// e2→e4: piece=52, move=36 (white pawn opening)
+	msg := buildMsg(t, WhitePlayer, postMoveResponse{
+		MessageType: postMove,
+		Body:        postMoveBody{Piece: 52, Move: 36},
+	})
+
+	err := hub.updateGameStateAfterMove(msg)
+	if err != nil {
+		t.Fatalf("updateGameStateAfterMove: %v", err)
+	}
+
+	if hub.currentFEN == startingFEN {
+		t.Error("FEN should have changed after a valid move")
+	}
+	// Turn flips: white moved, now black's turn.
+	if hub.turn != playerTurn(BlackTurn) {
+		t.Errorf("turn = %d, want BlackTurn after white moves", hub.turn)
+	}
+	// History grows by one entry.
+	if len(hub.moveHistory) != 1 {
+		t.Errorf("moveHistory length = %d, want 1", len(hub.moveHistory))
+	}
+	// The new history entry should record the correct squares.
+	if hub.moveHistory[0].LastMove != [2]int{52, 36} {
+		t.Errorf("LastMove = %v, want [52 36]", hub.moveHistory[0].LastMove)
+	}
+}
+
+func TestUpdateGameStateAfterMove_PieceOutOfBounds(t *testing.T) {
+	hub := hubForMoveTests(t)
+	msg := buildMsg(t, WhitePlayer, postMoveResponse{
+		MessageType: postMove,
+		Body:        postMoveBody{Piece: 100, Move: 36}, // piece index > 63
+	})
+
+	if err := hub.updateGameStateAfterMove(msg); err == nil {
+		t.Error("expected error for out-of-bounds piece index, got nil")
+	}
+	// FEN and history must be unchanged.
+	if hub.currentFEN != startingFEN {
+		t.Error("FEN should not change on rejected move")
+	}
+}
+
+func TestUpdateGameStateAfterMove_IllegalMove(t *testing.T) {
+	hub := hubForMoveTests(t)
+	// Attempt to move the e2 pawn to e1 (own king's square) — illegal.
+	msg := buildMsg(t, WhitePlayer, postMoveResponse{
+		MessageType: postMove,
+		Body:        postMoveBody{Piece: 52, Move: 60},
+	})
+
+	if err := hub.updateGameStateAfterMove(msg); err == nil {
+		t.Error("expected error for illegal move, got nil")
+	}
+	if hub.currentFEN != startingFEN {
+		t.Error("FEN should not change on rejected move")
+	}
+}
+
+func TestUpdateGameStateAfterMove_ThreefoldRepetition(t *testing.T) {
+	// Set the FEN frequency map so the position reached by e2→e4 already
+	// appears twice. The move should then flip isThreefoldRepetition to true.
+	hub := hubForMoveTests(t)
+
+	// Apply e2→e4 once to find out what FEN it produces.
+	msg := buildMsg(t, WhitePlayer, postMoveResponse{
+		MessageType: postMove,
+		Body:        postMoveBody{Piece: 52, Move: 36},
+	})
+	if err := hub.updateGameStateAfterMove(msg); err != nil {
+		t.Fatalf("first move: %v", err)
+	}
+	afterE4FEN := hub.currentFEN
+
+	// Reset hub to starting position and pre-seed the frequency map with two
+	// prior occurrences of that position (position + castling + en-passant fields,
+	// no halfmove/fullmove clocks).
+	hub2 := hubForMoveTests(t)
+	splitKey := splitFENKey(afterE4FEN)
+	hub2.fenFreqMap[splitKey] = 2 // already seen twice
+
+	msg2 := buildMsg(t, WhitePlayer, postMoveResponse{
+		MessageType: postMove,
+		Body:        postMoveBody{Piece: 52, Move: 36},
+	})
+	if err := hub2.updateGameStateAfterMove(msg2); err != nil {
+		t.Fatalf("seeded move: %v", err)
+	}
+
+	if !hub2.isThreefoldRepetition {
+		t.Error("isThreefoldRepetition should be true after third occurrence")
+	}
+}
+
+// splitFENKey returns the first four space-separated fields of a FEN string —
+// the part used for threefold-repetition tracking (position, active colour,
+// castling, en-passant; no halfmove/fullmove clocks).
+func splitFENKey(fen string) string {
+	parts := strings.SplitN(fen, " ", 5)
+	if len(parts) < 4 {
+		return fen
+	}
+	return strings.Join(parts[:4], " ")
 }
