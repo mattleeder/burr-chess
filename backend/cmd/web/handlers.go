@@ -469,7 +469,7 @@ func (app *application) getUserAccountSettingsHandler(w http.ResponseWriter, r *
 }
 
 func (app *application) updateEmailHandler(w http.ResponseWriter, r *http.Request) {
-	playerID, ok := app.sessionPlayerID(w, r)
+	playerID, _, ok := app.sessionPlayer(w, r)
 	if !ok {
 		return
 	}

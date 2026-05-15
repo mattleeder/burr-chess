@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"burrchess/internal/models"
@@ -285,26 +284,16 @@ func TestGetAccountSettings_Authenticated(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestUpdateEmail_Unauthenticated(t *testing.T) {
-	// updateEmailHandler only requires playerID in session, which validateSession
-	// assigns even to anonymous users. Test with no session at all (no cookies)
-	// to get a genuine 401.
 	ts := newTestServer(t, newTestApp(t).routes())
+	// validateSession gives an anonymous session (playerID but no username).
+	// updateEmailHandler now uses sessionPlayer, so it must return 401.
+	csrf := ts.validateSession(t)
 
-	// Use a fresh client with no cookies — no session, no playerID.
-	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/emailChange", strings.NewReader(`{"email":"x@example.com"}`))
-	req.Header.Set("Content-Type", "application/json")
-	// No X-CSRF-Token -> will be caught by CSRF middleware first (403), unless
-	// we send it. Since there is no session, the session CSRF token is "" and
-	// the condition `sessionToken == "" || token != sessionToken` triggers 403.
-	// Either 401 or 403 indicates the request was rejected before doing work.
-	resp, err := ts.client.Do(req)
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
+	resp := ts.postJSON(t, "/emailChange", csrf, updateEmailRequest{Email: "x@example.com"})
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401 or 403 for unauthenticated email change", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401 for anonymous user", resp.StatusCode)
 	}
 }
 
