@@ -657,7 +657,14 @@ func (hub *MatchRoomHub) endGame(reason chess.GameOverStatusCode) error {
 
 	hub.gameEnded = true
 
-	if err := hub.app.liveMatches.EnQueueReturnMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo); err != nil {
+	if len(hub.moveHistory) <= 1 {
+		// No moves were made (e.g. abort or early disconnect) — past_matches requires
+		// last_move_piece/last_move_move to be non-null, so just delete the live match.
+		// hub.moveHistory always starts with 1 entry (initial board state), so <= 1 means no actual moves.
+		if err := hub.app.liveMatches.EnQueueReturnDeleteMatch(hub.matchID); err != nil {
+			hub.app.logger.Error("failed to delete aborted match", "matchID", hub.matchID, "err", err)
+		}
+	} else if err := hub.app.liveMatches.EnQueueReturnMoveMatchToPastMatches(hub.matchID, outcome, reason, whiteNewElo-hub.players[WhitePlayer].elo, blackNewElo-hub.players[BlackPlayer].elo); err != nil {
 		hub.app.logger.Error("failed to persist match to past matches", "matchID", hub.matchID, "err", err)
 	}
 

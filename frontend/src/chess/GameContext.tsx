@@ -283,6 +283,7 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
   useEffect(() => {
     let attempts = 0
     let cancelled = false
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
     const connect = () => {
       setWsConnectionFailed(false)
@@ -323,15 +324,17 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
         attempts++
         const delay = Math.min(1000 * 2 ** attempts, 30000) // Never more than 30s
         console.log(`WebSocket closed, reconnecting in ${delay}ms (attempt ${attempts})`)
-        setTimeout(connect, delay)
+        reconnectTimeout = setTimeout(connect, delay)
       }
     }
     connect()
 
     return () => {
       cancelled = true
+      if (reconnectTimeout !== null) clearTimeout(reconnectTimeout)
       if (webSocket.current) {
         webSocket.current.onclose = null
+        webSocket.current.onerror = null
         webSocket.current.close()
       }
     }

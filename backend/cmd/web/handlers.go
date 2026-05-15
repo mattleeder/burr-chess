@@ -88,16 +88,17 @@ func (app *application) joinQueueHandler(w http.ResponseWriter, r *http.Request)
 
 	var playerID = app.sessionManager.GetInt64(r.Context(), "playerID")
 
-	isInMatch, err := app.liveMatches.IsPlayerInMatch(playerID)
-	if err != nil {
-		app.serverError(w, err)
-		return
-	}
-
-	if isInMatch {
-		app.logger.Warn("join queue rejected: player already in match", "playerID", playerID)
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if joinQueue.Action == "join" {
+		isInMatch, err := app.liveMatches.IsPlayerInMatch(playerID)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		if isInMatch {
+			app.logger.Warn("join queue rejected: player already in match", "playerID", playerID)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	if joinQueue.Action == "join" {

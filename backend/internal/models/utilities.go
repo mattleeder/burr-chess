@@ -20,8 +20,8 @@ const (
 func GenerateNewPlayerId() int64 {
 	var b [8]byte
 	rand.Read(b[:])
-	id := int64(binary.LittleEndian.Uint64(b[:]))
-	return id
+	b[7] &= 0x7F // clear sign bit to ensure result is always a positive int64
+	return int64(binary.LittleEndian.Uint64(b[:]))
 }
 
 func ExecStatementWithRetry(stmt *sql.Stmt, args ...any) (sql.Result, error) {

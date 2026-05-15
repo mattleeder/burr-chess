@@ -79,12 +79,16 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
     throw new Error(response.statusText)
   }
 
-  // Joined, start listening for events
-  eventSource.current = new EventSource(API.listenForMatch, {
+  // Joined, start listening for events.
+  // Capture `es` so onerror/onmessage can tell whether they belong to the
+  // current EventSource or a stale one that was replaced by a later join.
+  const es = new EventSource(API.listenForMatch, {
     withCredentials: true,
   })
+  eventSource.current = es
 
-  eventSource.current.onmessage = (event) => {
+  es.onmessage = (event) => {
+    if (eventSource.current !== es) return
     const splitData = event.data.split(",")
     if (splitData.length < 3) {
       console.error("SSE: malformed match data", event.data)
@@ -101,10 +105,17 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
     navigate("matchroom/" + matchFoundState.current.matchRoom, { state: matchFoundState.current })
   }
 
-  eventSource.current.onerror = (event) => {
+  es.onerror = (event) => {
+    if (eventSource.current !== es) {
+      // Stale EventSource (server closed its channel when a newer one connected).
+      // Close it to prevent auto-reconnect and ignore the error.
+      es.close()
+      return
+    }
     console.error(`SSE Error: ${event}`)
     console.error(event)
-    eventSource.current?.close()
+    es.close()
+    eventSource.current = null
     tryLeaveQueue(queueName, eventSource, csrfToken).catch(console.error)
     onError("Connection to server lost. Please try again.")
   }
@@ -195,7 +206,7 @@ function QueueButton({ queueState, nameOfQueue, queueType }: { queueState: Queue
   return (
     <>
       {loading ?
-        <button onClick={() => toggleQueue(queueState, nameOfQueue)} className="queueButton" disabled><LoaderCircle className="loaderSpin"/></button>
+        <button onClick={() => toggleQueue(queueState, nameOfQueue)} className="queueButton"><LoaderCircle className="loaderSpin"/></button>
         :
         <button onClick={() => toggleQueue(queueState, nameOfQueue)} className="queueButton"><span>{nameOfQueue}<br />{queueType}</span></button>
       }

@@ -179,7 +179,7 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		val, _ := app.rateLimiters.LoadOrStore("general:"+ip, rate.NewLimiter(rate.Every(time.Second), 10)) // 10 per second
+		val, _ := app.rateLimiters.LoadOrStore("general:"+ip, rate.NewLimiter(rate.Every(100*time.Millisecond), 20)) // 10 per second, burst 20
 		if !val.(*rate.Limiter).Allow() {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
