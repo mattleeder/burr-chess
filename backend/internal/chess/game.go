@@ -92,7 +92,7 @@ func applyMove(currentGameState gameState, piece int, move int, promotionString 
 
 	// Castling: the king has already been moved to its destination (2 squares from start).
 	// The rook is adjacent to the king's new position and needs to hop to the other side.
-	// Kingside: rook at move+1 → move-1. Queenside: rook at move-2 → move+1.
+	// Kingside: rook at move+1 -> move-1. Queenside: rook at move-2 -> move+1.
 	if newGameState.board[move].piece.variant == King {
 		if abs(move-piece) == 2 {
 			if newGameState.board[move+1].piece != nil && newGameState.board[move+1].piece.variant == Rook {
