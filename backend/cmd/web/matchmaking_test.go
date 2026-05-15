@@ -71,6 +71,21 @@ func poolSize(timeFormat, increment int64) int {
 	return len(q.matchmakingPool)
 }
 
+// waitingPoolSize returns the current waitingPool length for a given time format.
+// New players enter waitingPool first; they move to matchmakingPool each tick.
+func waitingPoolSize(timeFormat, increment int64) int {
+	key := queueKey{timeFormat, increment}
+	queueMu.Lock()
+	q := queueMap[key]
+	queueMu.Unlock()
+	if q == nil {
+		return 0
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.waitingPool)
+}
+
 // ---------------------------------------------------------------------------
 // Pure functions
 // ---------------------------------------------------------------------------

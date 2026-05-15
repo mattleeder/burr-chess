@@ -207,6 +207,58 @@ func TestRequireLocalhost_LocalhostIPv6Allowed(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// rateLimit — 429 after burst exhausted
+// ---------------------------------------------------------------------------
+
+func TestRateLimit_Returns429AfterBurst(t *testing.T) {
+	app := newTestApp(t)
+
+	// Wrap a trivial handler with the HTTP rate limiter.
+	handler := app.rateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// The limiter allows a burst of 20 (see middleware.go).  Send 21 requests
+	// from the same RemoteAddr — the last one must be rejected with 429.
+	const burst = 20
+	var lastStatus int
+	for i := 0; i <= burst; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = "10.0.0.1:1234"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		lastStatus = rr.Code
+	}
+
+	if lastStatus != http.StatusTooManyRequests {
+		t.Errorf("status after burst = %d, want 429", lastStatus)
+	}
+}
+
+func TestAuthRateLimit_Returns429AfterBurst(t *testing.T) {
+	app := newTestApp(t)
+
+	handler := app.authRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Auth limiter burst is 5; the 6th request must be rejected.
+	const burst = 5
+	var lastStatus int
+	for i := 0; i <= burst; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/login", nil)
+		req.RemoteAddr = "10.0.0.2:1234"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		lastStatus = rr.Code
+	}
+
+	if lastStatus != http.StatusTooManyRequests {
+		t.Errorf("status after auth burst = %d, want 429", lastStatus)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // recoverPanic
 // ---------------------------------------------------------------------------
 

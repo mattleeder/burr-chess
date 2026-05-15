@@ -554,3 +554,97 @@ func TestGetPastMatches_TimeFormatFilter(t *testing.T) {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// joinQueueHandler
+// ---------------------------------------------------------------------------
+
+func TestJoinQueue_AnonymousPlayerJoins(t *testing.T) {
+	resetMatchmaking(t)
+	ts := newTestServer(t, newTestApp(t).routes())
+	csrf := ts.validateSession(t)
+
+	resp := ts.postJSON(t, "/joinQueue", csrf, joinQueueRequest{
+		TimeFormatInMilliseconds: 5 * 60_000,
+		IncrementInMilliseconds:  0,
+		Action:                   "join",
+	})
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
+	}
+	// Verify the player landed in the waiting pool (addPlayerToWaitingPool
+	// places new entrants in waitingPool; matchmakingPool is populated later
+	// by the matchmaking goroutine).
+	if waitingPoolSize(5*60_000, 0) != 1 {
+		t.Errorf("waiting pool size = %d, want 1 after join", waitingPoolSize(5*60_000, 0))
+	}
+}
+
+func TestJoinQueue_AnonymousPlayerLeaves(t *testing.T) {
+	resetMatchmaking(t)
+	ts := newTestServer(t, newTestApp(t).routes())
+	csrf := ts.validateSession(t)
+
+	// Join first.
+	resp := ts.postJSON(t, "/joinQueue", csrf, joinQueueRequest{
+		TimeFormatInMilliseconds: 5 * 60_000,
+		IncrementInMilliseconds:  0,
+		Action:                   "join",
+	})
+	resp.Body.Close()
+
+	// Then leave.
+	resp2 := ts.postJSON(t, "/joinQueue", csrf, joinQueueRequest{
+		TimeFormatInMilliseconds: 5 * 60_000,
+		IncrementInMilliseconds:  0,
+		Action:                   "leave",
+	})
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp2.StatusCode)
+	}
+}
+
+func TestJoinQueue_AlreadyInMatch_Returns400(t *testing.T) {
+	resetMatchmaking(t)
+	app := newTestApp(t)
+	ts := newTestServer(t, app.routes())
+
+	// Register nora so we have a known playerID.
+	csrf := ts.registerAndLogin(t, "nora", "password123")
+
+	nora, err := app.users.GetUserClientSide(models.ByUsername("nora"))
+	if err != nil {
+		t.Fatalf("get nora: %v", err)
+	}
+
+	// Insert a live match for nora so IsPlayerInMatch returns true.
+	_, err = app.liveMatches.InsertNew(models.InsertNewParams{
+		PlayerOneID:              nora.PlayerID,
+		PlayerTwoID:              9999,
+		PlayerOneIsWhite:         true,
+		TimeFormatInMilliseconds: 5 * 60_000,
+		GameHistory:              []byte("[]"),
+		AverageElo:               1500,
+		WhitePlayerElo:           1500,
+		BlackPlayerElo:           1500,
+	})
+	if err != nil {
+		t.Fatalf("insert match: %v", err)
+	}
+
+	resp := ts.postJSON(t, "/joinQueue", csrf, joinQueueRequest{
+		TimeFormatInMilliseconds: 5 * 60_000,
+		IncrementInMilliseconds:  0,
+		Action:                   "join",
+	})
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 when player is already in a match", resp.StatusCode)
+	}
+}
+

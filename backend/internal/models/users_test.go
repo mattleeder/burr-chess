@@ -260,3 +260,57 @@ func TestUserModel_GetTileInfoFromUsername(t *testing.T) {
 		t.Errorf("NumberOfGames = %d, want 0", info.NumberOfGames)
 	}
 }
+
+func TestUserModel_GetUserServerSide(t *testing.T) {
+	m := &UserModel{DB: newTestDB(t)}
+	insertTestUser(t, m, "grace", "pass")
+
+	u, err := m.GetUserServerSide(ByUsername("grace"))
+	if err != nil {
+		t.Fatalf("GetUserServerSide: %v", err)
+	}
+	if u.Username != "grace" {
+		t.Errorf("username = %q, want grace", u.Username)
+	}
+	if u.PlayerID == 0 {
+		t.Error("PlayerID should be non-zero")
+	}
+	// Password hash should be present
+	if len(u.Password) == 0 {
+		t.Error("expected non-empty password hash")
+	}
+}
+
+func TestUserModel_GetUserServerSide_NotFound(t *testing.T) {
+	m := &UserModel{DB: newTestDB(t)}
+
+	_, err := m.GetUserServerSide(ByUsername("nobody"))
+	if err == nil {
+		t.Error("expected error for unknown user, got nil")
+	}
+}
+
+func TestUserModel_UpdateLastSeen(t *testing.T) {
+	m := &UserModel{DB: newTestDB(t)}
+	insertTestUser(t, m, "henry", "pass")
+
+	// Capture last_seen before the update.
+	before, err := m.GetUserServerSide(ByUsername("henry"))
+	if err != nil {
+		t.Fatalf("get before: %v", err)
+	}
+
+	if err := m.UpdateLastSeen(ByUsername("henry")); err != nil {
+		t.Fatalf("UpdateLastSeen: %v", err)
+	}
+
+	after, err := m.GetUserServerSide(ByUsername("henry"))
+	if err != nil {
+		t.Fatalf("get after: %v", err)
+	}
+
+	// last_seen should be >= what it was before (SQLite stores unix seconds).
+	if after.LastSeen < before.LastSeen {
+		t.Errorf("LastSeen went backwards: before=%d after=%d", before.LastSeen, after.LastSeen)
+	}
+}
