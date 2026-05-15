@@ -111,7 +111,7 @@ interface ChessWebSocketMessage {
 
 // ── Reducer ──
 
-interface GameState {
+export interface GameState {
   matchData: matchData
   playerColour: PieceColour
   isWhiteConnected: boolean
@@ -123,7 +123,7 @@ interface GameState {
   threefoldRepetition: boolean
 }
 
-type GameAction =
+export type GameAction =
   | { type: "PLAYER_CODE"; body: PlayerCodeMessage }
   | { type: "ON_CONNECT"; body: OnConnectMessage }
   | { type: "ON_MOVE"; body: OnMoveMessage }
@@ -177,7 +177,7 @@ function applyMoveMessage(state: GameState, body: OnMoveMessage): GameState {
   }
 }
 
-function gameReducer(state: GameState, action: GameAction): GameState {
+export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
   case "PLAYER_CODE":
     if (action.body.playerCode === 0) {
@@ -239,7 +239,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
 // ── WebSocket message dispatcher ──
 
-function dispatchWebSocketMessage(data: unknown, dispatch: Dispatch<GameAction>) {
+export function dispatchWebSocketMessage(data: unknown, dispatch: Dispatch<GameAction>) {
   if (typeof data !== "string") return
 
   for (const msg of data.split("\n")) {
@@ -360,7 +360,7 @@ function useGameWebSocket(matchID: string, dispatch: Dispatch<GameAction>) {
 
 const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-function createInitialState(timeFormatInMilliseconds: number): GameState {
+export function createInitialState(timeFormatInMilliseconds: number): GameState {
   return {
     matchData: {
       activeState: {

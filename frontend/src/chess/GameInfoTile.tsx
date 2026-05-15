@@ -7,7 +7,7 @@ import { PlayerInfoTileContext, PlayerInfoTileContextInterface } from "../Player
 import "./GameInfoTile.css";
 
 
-function isClockPaused(game: gameContext, colour: PieceColour) {
+export function isClockPaused(game: gameContext, colour: PieceColour) {
   if (!game) {
     return true
   }
@@ -149,7 +149,7 @@ function updateActiveState(stateHistoryIndex: number, game: gameContext) {
   game.setMatchData(matchData)
 }
 
-function formatDuration(durationInMilliseconds: number): string {
+export function formatDuration(durationInMilliseconds: number): string {
   if (durationInMilliseconds <= 0) {
     return "00:00:00.0"
   }
@@ -265,7 +265,7 @@ function EventTypeDialog() {
 
   // Handle disconnect timeout timer
   useEffect(() => {
-    const timeoutArray: NodeJS.Timeout[] = []
+    const timeoutArray: ReturnType<typeof setTimeout>[] = []
     const updateTime = (start: number) => {
       if (game.millisecondsUntilOpponentTimeout === null) {
         return
