@@ -3,6 +3,7 @@
 *.db-wal
 *.exe
 *.env
+.exe~
 
 # Certs
 *.crt
