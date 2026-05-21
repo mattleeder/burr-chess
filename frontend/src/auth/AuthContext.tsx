@@ -121,6 +121,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result
   }
 
+  // Signal to E2E tests that auth is initialised and csrfToken is ready.
+  // Runs after React commits the render where isLoading becomes false, which
+  // guarantees csrfToken is also committed (they update in the same batch).
+  useEffect(() => {
+    if (!isLoading) {
+      document.body.setAttribute('data-auth-loaded', 'true')
+    }
+  }, [isLoading])
+
   useEffect(() => {
     const validateSession = async () => {
       try {

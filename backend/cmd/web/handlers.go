@@ -16,9 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const (
-	sseHeartbeatTimer = 15 * time.Second
-)
+var sseHeartbeatTimer = 15 * time.Second
 
 type joinQueueRequest struct {
 	TimeFormatInMilliseconds int64  `json:"timeFormatInMilliseconds"`
@@ -145,10 +143,17 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	clients.mu.Lock()
+	client := &Client{id: playerID, channel: make(chan string, 1)}
 	if existing, exists := clients.clients[playerID]; exists {
+		// Forward any buffered notification so we don't lose a match-found event
+		// that arrived between joinQueue returning and this SSE connection opening.
+		select {
+		case msg := <-existing.channel:
+			client.channel <- msg
+		default:
+		}
 		close(existing.channel)
 	}
-	client := &Client{id: playerID, channel: make(chan string, 1)}
 	clients.clients[playerID] = client
 	clientChannel := client.channel
 	clients.mu.Unlock()
@@ -167,6 +172,13 @@ func (app *application) matchFoundSSEHandler(w http.ResponseWriter, r *http.Requ
 		app.serverError(w, errors.New("streaming unsupported"))
 		return
 	}
+
+	// Send an initial SSE comment to flush headers through any proxy buffer and
+	// trigger the client's EventSource onopen event immediately.
+	// Without body content, some proxies (including Vite's dev proxy) buffer
+	// the headers and delay onopen until real data arrives.
+	fmt.Fprintf(w, ": connected\n\n")
+	flusher.Flush()
 
 	heartbeat := time.NewTicker(sseHeartbeatTimer)
 	defer heartbeat.Stop()

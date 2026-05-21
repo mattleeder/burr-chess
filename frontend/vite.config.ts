@@ -6,6 +6,18 @@ const ReactCompilerConfig = { /* ... */ };
 // https://vite.dev/config/
 export default defineConfig(() => {
   return {
+    server: {
+      proxy: {
+        // Proxy /api/* to the Go backend in dev, stripping the /api prefix.
+        // e.g. /api/validateSession → http://localhost:8080/validateSession
+        '/api': {
+          target: process.env.BACKEND_URL ?? 'http://localhost:8080',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+          ws: true,
+        },
+      },
+    },
     plugins: [
       react({
         babel: {
@@ -22,6 +34,7 @@ export default defineConfig(() => {
       environmentOptions: {
         happyDom: { url: 'http://localhost' },
       },
+      exclude: ['tests/**', 'node_modules/**'],
     },
   };
 });

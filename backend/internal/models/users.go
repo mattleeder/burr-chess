@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 )
 
 const (
-	PASSWORD_COST           = 14
 	MinUsernameLength       = 3
 	MaxUsernameLength       = 32
 	MinPasswordLength       = 1
@@ -50,7 +50,8 @@ type UserLoginInfo struct {
 }
 
 type UserModel struct {
-	DB *sql.DB
+	DB         *sql.DB
+	BcryptCost int // must be set by the application; 0 is rejected
 }
 
 type UserServerSide struct {
@@ -104,9 +105,11 @@ func IsValidEmail(email string) bool {
 	return strings.Contains(domain, ".") && !strings.HasSuffix(domain, ".") && strings.Count(email, "@") == 1
 }
 
-func hashPassword(password string) (string, error) {
-	var passwordBytes = []byte(password)
-	hashedPasswordBytes, err := bcrypt.GenerateFromPassword(passwordBytes, PASSWORD_COST)
+func (m *UserModel) hashPassword(password string) (string, error) {
+	if m.BcryptCost == 0 {
+		return "", fmt.Errorf("UserModel.BcryptCost not set")
+	}
+	hashedPasswordBytes, err := bcrypt.GenerateFromPassword([]byte(password), m.BcryptCost)
 	return string(hashedPasswordBytes), err
 }
 
@@ -159,7 +162,7 @@ func (m *UserModel) InsertNew(username string, password string, options *NewUser
 
 	slog.Info("inserting new user", "username", username)
 
-	hashedPassword, err := hashPassword(password)
+	hashedPassword, err := m.hashPassword(password)
 	password = "" // Overwrite password to avoid accidental usage
 	if err != nil {
 		slog.Error("error generating password hash", "err", err)
@@ -496,7 +499,7 @@ func (m *UserModel) UpdatePassword(playerID int64, newPassword string) error {
 	 WHERE player_id = ?
 	`
 
-	hashedPassword, err := hashPassword(newPassword)
+	hashedPassword, err := m.hashPassword(newPassword)
 	newPassword = "" // Overwrite password to avoid accidental usage
 	if err != nil {
 		slog.Error("error generating password hash", "err", err)

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"burrchess/internal/chess"
 )
 
@@ -113,7 +115,7 @@ func TestLiveMatchModel_GetFromMatchID_NotFound(t *testing.T) {
 func TestLiveMatchModel_GetFromMatchID_WithUsernames(t *testing.T) {
 	db := newTestDB(t)
 	liveModel := &LiveMatchModel{DB: db}
-	userModel := &UserModel{DB: db}
+	userModel := &UserModel{DB: db, BcryptCost: bcrypt.MinCost}
 
 	whiteID := insertTestUser(t, userModel, "white_player", "pass")
 	blackID := insertTestUser(t, userModel, "black_player", "pass")
@@ -335,7 +337,7 @@ func TestLiveMatchModel_MoveMatchToPastMatches(t *testing.T) {
 func TestPastMatchModel_GetPastMatchesWithFormat_Filters(t *testing.T) {
 	db := newTestDB(t)
 	liveModel := &LiveMatchModel{DB: db}
-	userModel := &UserModel{DB: db}
+	userModel := &UserModel{DB: db, BcryptCost: bcrypt.MinCost}
 	pastModel := &PastMatchModel{DB: db}
 
 	whiteID := insertTestUser(t, userModel, "player_w", "pass")

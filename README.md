@@ -35,3 +35,18 @@ docker-compose up --build
 Open `https://localhost/` to play.
 
 ![screenshot](./queue_demo.gif)
+
+## Testing
+
+```powershell
+# Frontend
+cd frontend
+npm test
+
+# Backend
+cd backend
+go test ./...
+
+# End to end (Playwright)
+docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+```

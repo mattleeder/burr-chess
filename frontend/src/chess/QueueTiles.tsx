@@ -88,7 +88,10 @@ async function tryJoinQueue(queueName: string, matchFoundState: React.RefObject<
   eventSource.current = es
 
   es.onmessage = (event) => {
-    if (eventSource.current !== es) return
+    // Allow navigation if this is the active EventSource OR if onerror cleared it
+    // (eventSource.current === null) but the match notification arrived at the same
+    // time as the connection error — both events can be queued simultaneously.
+    if (eventSource.current !== null && eventSource.current !== es) return
     const splitData = event.data.split(",")
     if (splitData.length < 3) {
       console.error("SSE: malformed match data", event.data)

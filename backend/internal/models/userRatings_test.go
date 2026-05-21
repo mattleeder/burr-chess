@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"burrchess/internal/chess"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestGetRatingTypeFromTimeFormat(t *testing.T) {
@@ -63,7 +64,7 @@ func TestUserRatings_GetRatingForTimeFormat(t *testing.T) {
 
 func TestUserRatingsModel_DefaultRatings(t *testing.T) {
 	db := newTestDB(t)
-	users := &UserModel{DB: db}
+	users := &UserModel{DB: db, BcryptCost: bcrypt.MinCost}
 	ratings := &UserRatingsModel{DB: db}
 
 	insertTestUser(t, users, "grace", "pass")
@@ -92,7 +93,7 @@ func TestUserRatingsModel_DefaultRatings(t *testing.T) {
 
 func TestUserRatingsModel_GetRatingFromPlayerID(t *testing.T) {
 	db := newTestDB(t)
-	users := &UserModel{DB: db}
+	users := &UserModel{DB: db, BcryptCost: bcrypt.MinCost}
 	ratingsModel := &UserRatingsModel{DB: db}
 
 	id := insertTestUser(t, users, "henry", "pass")
@@ -108,7 +109,7 @@ func TestUserRatingsModel_GetRatingFromPlayerID(t *testing.T) {
 
 func TestUserRatingsModel_UpdateRating(t *testing.T) {
 	db := newTestDB(t)
-	users := &UserModel{DB: db}
+	users := &UserModel{DB: db, BcryptCost: bcrypt.MinCost}
 	ratingsModel := &UserRatingsModel{DB: db}
 
 	id := insertTestUser(t, users, "iris", "pass")
@@ -152,7 +153,7 @@ func TestUserRatingsModel_UpdateRating(t *testing.T) {
 
 func TestUserRatingsModel_UpdateRatingFromUsername(t *testing.T) {
 	db := newTestDB(t)
-	users := &UserModel{DB: db}
+	users := &UserModel{DB: db, BcryptCost: bcrypt.MinCost}
 	ratingsModel := &UserRatingsModel{DB: db}
 
 	insertTestUser(t, users, "jack", "pass")

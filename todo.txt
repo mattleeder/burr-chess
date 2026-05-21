@@ -4,8 +4,12 @@ Frontend
     - Make profile look nicer
     - Add themes
     - Add client side chess logic
-    - Add optimistic moves
     - Add piece animations
+    - Cannot click resign while piece is selected
+    - Language?
+    - Aria and accessibility
+    - Sounds
+
 
 Backend
 
@@ -14,7 +18,8 @@ Backend
 
 Both
 
-    - Make ping work
-    - Make server ms work
     - Add resign confirmation
     - Add feedback after sending draw offer
+    - Add takebacks
+    - E2E testing
+    - Test integration

@@ -440,6 +440,14 @@ func (m *LiveMatchModel) EnQueueMoveMatchToPastMatches(matchID int64, result che
 	})
 }
 
+func (m *LiveMatchModel) DeleteAllLiveMatches() error {
+	_, err := m.DB.Exec(`DELETE FROM live_matches`)
+	if err != nil {
+		slog.Error("DeleteAllLiveMatches: error", "err", err)
+	}
+	return err
+}
+
 func (m *LiveMatchModel) DeleteMatch(matchID int64) error {
 	sqlStmt := `DELETE FROM live_matches WHERE match_id = ?`
 

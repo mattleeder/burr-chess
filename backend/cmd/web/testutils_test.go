@@ -15,7 +15,9 @@ import (
 	"burrchess/internal/models"
 
 	"github.com/alexedwards/scs/v2"
+	"golang.org/x/crypto/bcrypt"
 )
+
 
 // openTestDB opens an in-memory SQLite database with the schema applied.
 // Working directory for tests in cmd/web/ is the package directory itself.
@@ -50,7 +52,7 @@ func newTestApp(t *testing.T) *application {
 		secretKey:      []byte("aaaabbbbccccddddeeeeffffgggghhhh"),
 		liveMatches:    &models.LiveMatchModel{DB: db},
 		pastMatches:    &models.PastMatchModel{DB: db},
-		users:          &models.UserModel{DB: db},
+		users:          &models.UserModel{DB: db, BcryptCost: bcrypt.MinCost},
 		userRatings:    &models.UserRatingsModel{DB: db},
 		dbTaskQueue:    models.DBTaskQueue,
 		sessionManager: sm,

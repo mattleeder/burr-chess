@@ -58,6 +58,7 @@ func (app *application) routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /health", requireLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })))
+	registerE2ERoutes(mux, app)
 	mux.Handle("/", app.withLogSessionSecureCorsChain(app.rootHandler))
 	mux.Handle("POST /joinQueue", app.withLogSessionSecureCorsChain(app.joinQueueHandler))
 	mux.Handle("/matchroom/{matchID}/ws", app.withLogSessionSecureCorsChain(app.serveMatchroomWs))

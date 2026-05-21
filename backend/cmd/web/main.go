@@ -40,6 +40,8 @@ type application struct {
 	rateLimiters   sync.Map
 }
 
+const bcryptCost = 14
+
 var app *application
 
 func main() {
@@ -157,7 +159,7 @@ func main() {
 		secretKey:      secretKey,
 		liveMatches:    &models.LiveMatchModel{DB: db},
 		pastMatches:    &models.PastMatchModel{DB: db},
-		users:          &models.UserModel{DB: db},
+		users:          &models.UserModel{DB: db, BcryptCost: bcryptCost},
 		userRatings:    &models.UserRatingsModel{DB: db},
 		dbTaskQueue:    models.DBTaskQueue,
 		sessionManager: sessionManager,

@@ -4,10 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
-)
 
-// Note: bcrypt cost 14 means each InsertNew/UpdatePassword call takes ~1s.
-// These are intentionally slow integration tests.
+	"golang.org/x/crypto/bcrypt"
+)
 
 func TestIsValidEmail(t *testing.T) {
 	tests := []struct {
@@ -45,7 +44,7 @@ func TestGenerateNewPlayerId(t *testing.T) {
 }
 
 func TestUserModel_InsertNew(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 
 	id, err := m.InsertNew("alice", "password123", &NewUserOptions{})
 	if err != nil {
@@ -57,7 +56,7 @@ func TestUserModel_InsertNew(t *testing.T) {
 }
 
 func TestUserModel_InsertNew_DuplicateUsername(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 
 	if _, err := m.InsertNew("alice", "pass1", &NewUserOptions{}); err != nil {
 		t.Fatalf("first InsertNew: %v", err)
@@ -70,7 +69,7 @@ func TestUserModel_InsertNew_DuplicateUsername(t *testing.T) {
 }
 
 func TestUserModel_Authenticate(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	insertedID := insertTestUser(t, m, "bob", "secret")
 
 	t.Run("correct password", func(t *testing.T) {
@@ -99,7 +98,7 @@ func TestUserModel_Authenticate(t *testing.T) {
 }
 
 func TestUserModel_GetUserClientSide(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	id := insertTestUser(t, m, "carol", "pass")
 
 	t.Run("by username", func(t *testing.T) {
@@ -134,7 +133,7 @@ func TestUserModel_GetUserClientSide(t *testing.T) {
 }
 
 func TestUserModel_SearchForUsers(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	for _, name := range []string{"alice", "alicia", "bob"} {
 		insertTestUser(t, m, name, "p")
 	}
@@ -192,7 +191,7 @@ func TestUserModel_SearchForUsers(t *testing.T) {
 }
 
 func TestUserModel_UpdateEmail(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	id := insertTestUser(t, m, "dave", "pass")
 
 	if err := m.UpdateEmail(id, "dave@example.com"); err != nil {
@@ -221,7 +220,7 @@ func TestUserModel_UpdateEmail(t *testing.T) {
 }
 
 func TestUserModel_UpdatePassword(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	id := insertTestUser(t, m, "eve", "oldpass")
 
 	if err := m.UpdatePassword(id, "newpass"); err != nil {
@@ -239,7 +238,7 @@ func TestUserModel_UpdatePassword(t *testing.T) {
 }
 
 func TestUserModel_GetTileInfoFromUsername(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	insertTestUser(t, m, "frank", "pass")
 
 	info, err := m.GetTileInfoFromUsername("frank")
@@ -262,7 +261,7 @@ func TestUserModel_GetTileInfoFromUsername(t *testing.T) {
 }
 
 func TestUserModel_GetUserServerSide(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	insertTestUser(t, m, "grace", "pass")
 
 	u, err := m.GetUserServerSide(ByUsername("grace"))
@@ -282,7 +281,7 @@ func TestUserModel_GetUserServerSide(t *testing.T) {
 }
 
 func TestUserModel_GetUserServerSide_NotFound(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 
 	_, err := m.GetUserServerSide(ByUsername("nobody"))
 	if err == nil {
@@ -291,7 +290,7 @@ func TestUserModel_GetUserServerSide_NotFound(t *testing.T) {
 }
 
 func TestUserModel_UpdateLastSeen(t *testing.T) {
-	m := &UserModel{DB: newTestDB(t)}
+	m := &UserModel{DB: newTestDB(t), BcryptCost: bcrypt.MinCost}
 	insertTestUser(t, m, "henry", "pass")
 
 	// Capture last_seen before the update.
