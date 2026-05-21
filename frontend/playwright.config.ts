@@ -1,7 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
-  globalSetup: './tests/global.setup.ts',
   testDir: './tests',
   fullyParallel: false, // tests share a SQLite DB — run serially
   forbidOnly: !!process.env.CI,
@@ -11,17 +10,15 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5174',
     trace: 'on-first-retry',
+    launchOptions: {
+      executablePath: process.env.CHROMIUM_PATH,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    },
   },
   projects: [
-    // Setup project: runs auth.setup.ts before any test project.
-    {
-      name: 'setup',
-      testMatch: /auth\.setup\.ts/,
-    },
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      dependencies: ['setup'],
     },
   ],
   webServer: {

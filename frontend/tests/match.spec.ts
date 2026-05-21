@@ -1,5 +1,5 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test'
-import { waitForAuthLoaded, AUTH_FILE } from './helpers'
+import { waitForAuthLoaded, registerUser, uniqueUser } from './helpers'
 
 // ── Helpers ──
 
@@ -66,29 +66,19 @@ async function setupMatch(page1: Page, page2: Page) {
 // ── Tests ──
 
 test.describe('Match flow', () => {
-  // page1 = shared auth user (storageState), page2 = anonymous.
-  // Neither context registers or logs in, so auth rate-limit budget is unchanged.
+  // page1 = fresh unique registered user, page2 = anonymous.
+  // Each test gets its own user so there is no shared state to reset between tests.
   let ctx1: BrowserContext
   let ctx2: BrowserContext
   let page1: Page
   let page2: Page
 
   test.beforeEach(async ({ browser }) => {
-    // Clear any live matches left over from prior tests in this run, so the
-    // shared auth user is not blocked from queuing again.
-    const backendURL = process.env.BACKEND_URL ?? 'http://localhost:8080'
-    const resets = await Promise.all([
-      fetch(`${backendURL}/resetQueues`),
-      fetch(`${backendURL}/resetLiveMatches`),
-      fetch(`${backendURL}/resetMatchClients`),
-      fetch(`${backendURL}/resetRateLimiters`),
-    ])
-    for (const r of resets) {
-      if (!r.ok) throw new Error(`Reset failed: ${r.url} → ${r.status}`)
-    }
-
-    ctx1 = await browser.newContext({ storageState: AUTH_FILE })
+    ctx1 = await browser.newContext()
     page1 = await ctx1.newPage()
+    const user = uniqueUser()
+    await registerUser(page1, user.username, user.password)
+
     ctx2 = await browser.newContext()
     page2 = await ctx2.newPage()
   })

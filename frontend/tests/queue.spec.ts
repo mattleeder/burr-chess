@@ -1,8 +1,5 @@
 import { test, expect, Page } from '@playwright/test'
-import { logout, waitForAuthLoaded, registerUser, uniqueUser, AUTH_FILE } from './helpers'
-
-// All queue tests that need an authenticated user load the shared auth state.
-// This avoids extra register calls that would hit the auth rate limit.
+import { logout, waitForAuthLoaded, registerUser, uniqueUser } from './helpers'
 
 test.describe('Queue tiles (unauthenticated)', () => {
   test('queue tiles are visible on the homepage', async ({ page }) => {
@@ -22,22 +19,10 @@ test.describe('Queue tiles (unauthenticated)', () => {
 })
 
 test.describe('Queue tiles (authenticated)', () => {
-  test.use({ storageState: AUTH_FILE })
-
+  // Each test registers its own unique user so there is no shared state to reset between tests.
   test.beforeEach(async ({ page }) => {
-    // Reset backend state so stale live matches from prior tests don't block joinQueue.
-    const backendURL = process.env.BACKEND_URL ?? 'http://localhost:8080'
-    const resets = await Promise.all([
-      fetch(`${backendURL}/resetQueues`),
-      fetch(`${backendURL}/resetLiveMatches`),
-      fetch(`${backendURL}/resetMatchClients`),
-      fetch(`${backendURL}/resetRateLimiters`),
-    ])
-    for (const r of resets) {
-      if (!r.ok) throw new Error(`Reset failed: ${r.url} → ${r.status}`)
-    }
-
-    await page.goto('/')
+    const user = uniqueUser()
+    await registerUser(page, user.username, user.password)
     await waitForAuthLoaded(page)
   })
 
@@ -109,12 +94,6 @@ test.describe('Queue tiles (authenticated)', () => {
   })
 
   test('logging out while in queue clears the nav', async ({ page }) => {
-    // Register a fresh user so this test is independent of any prior logout that
-    // may have invalidated the shared storageState session (logout deletes the
-    // server-side session, so AccountDropdown wouldn't render for a stale cookie).
-    const user = uniqueUser()
-    await registerUser(page, user.username, user.password)
-
     await page.getByRole('button', { name: /3 \+ 0/ }).click()
     await expect(page.locator('.loaderSpin')).toBeVisible()
 

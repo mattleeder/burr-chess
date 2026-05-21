@@ -1,6 +1,18 @@
-FROM mcr.microsoft.com/playwright:v1.60.0-noble
+FROM dhi.io/node:26-alpine3.23-dev
 WORKDIR /app
+
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 COPY package*.json ./
 RUN npm install
 COPY . .
+
 CMD ["npx", "playwright", "test"]

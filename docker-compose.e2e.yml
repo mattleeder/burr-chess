@@ -1,13 +1,13 @@
 services:
   backend-e2e:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.e2e
+    build: ./backend
     environment:
       - SECRET_KEY=0000000000000000000000000000000000000000000000000000000000000000
       - ALLOWED_ORIGIN=http://localhost:5174
       - ENV=dev
       - DSN=file:/app/chess_test.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
+    ports:
+      - "8080:8080"
     healthcheck:
       test: ["CMD", "/app/server", "-healthcheck"]
       interval: 5s
@@ -21,6 +21,7 @@ services:
       dockerfile: Dockerfile.e2e
     environment:
       - BACKEND_URL=http://backend-e2e:8080
+      - CHROMIUM_PATH=/usr/bin/chromium-browser
     volumes:
       - ./frontend/playwright-report:/app/playwright-report
     depends_on:

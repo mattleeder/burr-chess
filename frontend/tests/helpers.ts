@@ -1,12 +1,5 @@
 import { Page } from '@playwright/test'
 
-// Shared test user created once in auth.setup.ts and reused via storageState.
-export const SHARED_USER = {
-  username: 'e2e_shared',
-  password: 'SharedPass1!',
-}
-export const AUTH_FILE = 'playwright/.auth/user.json'
-
 // Each test run gets a unique username suffix so tests don't collide in SQLite.
 let counter = 0
 export function uniqueUser(): { username: string; password: string } {

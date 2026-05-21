@@ -189,11 +189,16 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 }
 
 // authRateLimit applies a strict per-IP limit suitable for login/register (5 per minute).
+// Localhost is exempt so that E2E tests can register unique users per test without hitting the limit.
 func (app *application) authRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if ip == "127.0.0.1" || ip == "::1" {
+			next.ServeHTTP(w, r)
 			return
 		}
 		val, _ := app.rateLimiters.LoadOrStore("auth:"+ip, rate.NewLimiter(rate.Every(12*time.Second), 5)) // 5 per minute
